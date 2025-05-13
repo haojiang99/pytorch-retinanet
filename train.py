@@ -15,8 +15,10 @@ from torch.utils.data import DataLoader
 from retinanet import coco_eval
 from retinanet import csv_eval
 
-assert torch.__version__.split('.')[0] == '1'
+# Original version check removed
+# assert torch.__version__.split('.')[0] == '1'
 
+print(f'PyTorch version: {torch.__version__}')
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 
@@ -102,7 +104,8 @@ def main(args=None):
 
     optimizer = optim.Adam(retinanet.parameters(), lr=1e-5)
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
+    # Using ReduceLROnPlateau with parameters compatible with PyTorch 2.8.0
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
     loss_hist = collections.deque(maxlen=500)
 

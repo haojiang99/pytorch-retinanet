@@ -237,10 +237,19 @@ def evaluate(
     for label in range(generator.num_classes()):
         label_name = generator.label_to_name(label)
         print('{}: {}'.format(label_name, average_precisions[label][0]))
-        print("Precision: ",precision[-1])
-        print("Recall: ",recall[-1])
         
-        if save_path!=None:
+        # Check if precision and recall arrays exist and are not empty
+        if 'precision' in locals() and len(precision) > 0:
+            print("Precision: ", precision[-1])
+        else:
+            print("Precision: N/A (no detections)")
+            
+        if 'recall' in locals() and len(recall) > 0:
+            print("Recall: ", recall[-1])
+        else:
+            print("Recall: N/A (no detections)")
+        
+        if save_path!=None and 'precision' in locals() and 'recall' in locals() and len(precision) > 0 and len(recall) > 0:
             plt.plot(recall,precision)
             # naming the x axis 
             plt.xlabel('Recall') 

@@ -101,3 +101,5 @@ ENV/
 
 *.zip
 *.pt
+*.jpg
+*.csv
