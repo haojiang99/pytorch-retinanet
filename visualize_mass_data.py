@@ -2,7 +2,7 @@
 """
 DDSM Data Visualization Script
 
-This script visualizes the prepared calcification data by drawing bounding boxes
+This script visualizes the prepared mammogram mass data by drawing bounding boxes
 on the original images and saving them to a separate folder.
 """
 
@@ -15,9 +15,9 @@ from tqdm import tqdm
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Visualize prepared DDSM data')
-    parser.add_argument('--annotations', default='ddsm_retinanet_data_mass_train_test/annotations.csv',
+    parser.add_argument('--annotations', default='ddsm_retinanet_data_mass_test/annotations.csv',
                         help='Path to the annotations CSV file')
-    parser.add_argument('--class_map', default='ddsm_retinanet_data_mass_train_test/class_map.csv',
+    parser.add_argument('--class_map', default='ddsm_retinanet_data_mass_test/class_map.csv',
                         help='Path to the class_map CSV file')
     parser.add_argument('--output_dir', default='ddsm_mass_visualization',
                         help='Output directory for visualization images')
@@ -57,13 +57,45 @@ def visualize_annotation(image_path, x1, y1, x2, y2, class_name, output_path):
         # Ensure coordinates are within image boundaries
         x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
         
-        # Draw bounding box
+        # Draw bounding box with thicker lines (4 pixels)
         color = (0, 255, 0) if class_name == 'benign' else (0, 0, 255)  # Green for benign, Red for malignant
-        cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, 100)
         
-        # Add label
-        label = f"{class_name}"
-        cv2.putText(image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+        # Draw a contrasting outline to make the box more visible
+        cv2.rectangle(image, (x1-1, y1-1), (x2+1, y2+1), (255, 255, 255), 20)
+        
+        # Add label with improved visibility
+        label = f"{class_name.upper()}"
+        
+        # Measure text size to create better background box
+        text_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 1.2, 3)[0]
+        
+        # Draw filled rectangle for text background
+        text_box_y1 = max(0, y1 - text_size[1] - 10)
+        text_box_x1 = max(0, x1 - 2)
+        text_box_x2 = min(w, x1 + text_size[0] + 5)
+        
+        cv2.rectangle(image, 
+                     (text_box_x1, text_box_y1), 
+                     (text_box_x2, y1), 
+                     (0, 0, 0), 
+                     -1)  # Filled rectangle
+        
+        # Add white border to the background box
+        cv2.rectangle(image, 
+                     (text_box_x1, text_box_y1), 
+                     (text_box_x2, y1), 
+                     (255, 255, 255), 
+                     1)  # White border
+        
+        # Add text with larger font and thicker lines
+        cv2.putText(image, 
+                   label, 
+                   (x1, y1 - 5),  # Position adjusted for better placement
+                   cv2.FONT_HERSHEY_SIMPLEX, 
+                   24,  # Larger font size (was 0.9)
+                   (255, 255, 255),  # White text
+                   5)  # Thicker font (was 2)
         
         # Save the image
         ensure_dir(os.path.dirname(output_path))
@@ -121,8 +153,8 @@ def main():
         output_path = os.path.join(output_dir, base_name)
         
         # Check if the base directory exists based on where the script is run
-        if not os.path.exists(img_path) and os.path.exists(os.path.join('ddsm_retinanet_data_mass_train_test', img_path)):
-            img_path = os.path.join('ddsm_retinanet_data_mass_train_test', img_path)
+        if not os.path.exists(img_path) and os.path.exists(os.path.join('ddsm_retinanet_data_mass_test', img_path)):
+            img_path = os.path.join('ddsm_retinanet_data_mass_test', img_path)
         
         # Visualize
         if visualize_annotation(img_path, x1, y1, x2, y2, class_name, output_path):

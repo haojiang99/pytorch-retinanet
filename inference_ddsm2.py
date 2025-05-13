@@ -3,28 +3,62 @@ import torch
 import numpy as np
 import cv2
 import os
+import sys
 from retinanet import model
+from retinanet.model import ResNet, Bottleneck, BasicBlock
 from retinanet.dataloader import Normalizer, Resizer
 from torchvision import transforms
 import time
+from torch import serialization
 
-# COCO dataset classes
-COCO_CLASSES = {
+# DDSM dataset classes for mammogram mass detection
+DDSM_CLASSES = {
     0: 'benign', 
     1: 'malignant'
 }
 
 def load_model(model_path):
     """Load RetinaNet model from checkpoint"""
-    # Create model with 80 classes (COCO has 80 classes)
-    retinanet = model.resnet50(num_classes=2)
+    # Add safe globals for PyTorch 2.6+
+    serialization.add_safe_globals([ResNet, Bottleneck, BasicBlock])
     
-    # Load model weights
-    if torch.cuda.is_available():
-        retinanet.load_state_dict(torch.load(model_path, weights_only=False))
-        retinanet = retinanet.cuda()
-    else:
-        retinanet.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'),weights_only=False))
+    try:
+        # First try to load the entire model with weights_only=False
+        print(f"Loading model from: {model_path}")
+        if torch.cuda.is_available():
+            retinanet = torch.load(model_path, map_location=torch.device('cuda'), weights_only=False)
+        else:
+            retinanet = torch.load(model_path, map_location=torch.device('cpu'), weights_only=False)
+        
+        # If it's wrapped in DataParallel, get the module
+        if isinstance(retinanet, torch.nn.DataParallel):
+            print("Loaded DataParallel model, extracting module...")
+            retinanet = retinanet.module
+            
+    except Exception as e:
+        print(f"Error loading full model: {e}")
+        print("Trying to create model and load state dict...")
+        
+        # Try creating a new model and loading state dict with weights_only=False
+        retinanet = model.resnet50(num_classes=2)
+        
+        try:
+            if torch.cuda.is_available():
+                state_dict = torch.load(model_path, map_location=torch.device('cuda'), weights_only=False)
+                if isinstance(state_dict, torch.nn.Module):
+                    print("Loaded a full model instead of state dict, extracting state dict...")
+                    state_dict = state_dict.state_dict()
+                retinanet.load_state_dict(state_dict)
+                retinanet = retinanet.cuda()
+            else:
+                state_dict = torch.load(model_path, map_location=torch.device('cpu'), weights_only=False)
+                if isinstance(state_dict, torch.nn.Module):
+                    print("Loaded a full model instead of state dict, extracting state dict...")
+                    state_dict = state_dict.state_dict()
+                retinanet.load_state_dict(state_dict)
+        except Exception as e2:
+            print(f"Error loading state dict: {e2}")
+            raise RuntimeError(f"Failed to load model: {e2}")
     
     # Set model to evaluation mode
     retinanet.training = False
@@ -32,7 +66,7 @@ def load_model(model_path):
     return retinanet
 
 def preprocess_image(image_path):
-    """Preprocess image for inference"""
+    """Preprocess mammogram image for inference"""
     # Read image
     image = cv2.imread(image_path)
     if image is None:
@@ -41,16 +75,21 @@ def preprocess_image(image_path):
     # Make a copy of the original image for drawing
     original_image = image.copy()
     
-    # Convert BGR to RGB (since model expects RGB)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # For mammograms, they might be grayscale; ensure proper processing
+    if len(image.shape) == 2:
+        # If grayscale, convert to 3 channels
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    else:
+        # If already RGB/BGR, convert BGR to RGB (since model expects RGB)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     # Get image dimensions
     rows, cols, cns = image.shape
     
     # Calculate scale for resizing
     smallest_side = min(rows, cols)
-    min_side = 608
-    max_side = 1024
+    min_side = 800  # Larger size for mammograms to preserve details
+    max_side = 1333
     scale = min_side / smallest_side
     
     # Check if the largest side exceeds max_side
@@ -82,7 +121,7 @@ def preprocess_image(image_path):
     
     return original_image, image, scale
 
-def draw_caption(image, box, caption):
+def draw_caption(image, box, caption, color=(0, 0, 255)):
     """Draw a caption above the box in an image"""
     b = np.array(box).astype(int)
     
@@ -92,22 +131,51 @@ def draw_caption(image, box, caption):
     # Text
     cv2.putText(image, caption, (b[0], b[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
+def get_prediction_color(class_name):
+    """Return different colors based on the prediction class"""
+    if class_name == 'benign':
+        return (0, 255, 0)  # Green for benign
+    else:
+        return (0, 0, 255)  # Red for malignant
+
 def main():
-    parser = argparse.ArgumentParser(description='RetinaNet single image inference script')
-    parser.add_argument('--image', help='Path to input image', required=True)
-    parser.add_argument('--model', help='Path to model checkpoint', default='model_final.pt')
-    parser.add_argument('--score-threshold', type=float, help='Score threshold for detections', default=0.5)
-    parser.add_argument('--output', help='Path to save output image', default='output.jpg')
+    parser = argparse.ArgumentParser(description='RetinaNet DDSM mammogram inference script')
+    parser.add_argument('--image', help='Path to input mammogram image', required=True)
+    parser.add_argument('--model', help='Path to model checkpoint', default='csv_retinanet_64.pt')
+    parser.add_argument('--score-threshold', type=float, help='Score threshold for detections', default=0.3)
+    parser.add_argument('--output', help='Path to save output image', default='output_ddsm.jpg')
     
     args = parser.parse_args()
     
+    # Check if the image exists
+    if not os.path.isfile(args.image):
+        print(f"Error: Image file '{args.image}' not found.")
+        sys.exit(1)
+    
+    # Check if the model exists
+    if not os.path.isfile(args.model):
+        print(f"Error: Model file '{args.model}' not found.")
+        print("Available model files:")
+        model_files = [f for f in os.listdir('.') if f.endswith('.pt')]
+        for model_file in model_files:
+            print(f"  - {model_file}")
+        sys.exit(1)
+    
     # Load model
     print("Loading model...")
-    retinanet = load_model(args.model)
+    try:
+        retinanet = load_model(args.model)
+    except Exception as e:
+        print(f"Failed to load model: {e}")
+        sys.exit(1)
     
     # Load and preprocess image
-    print(f"Processing image: {args.image}")
-    original_image, image_tensor, scale = preprocess_image(args.image)
+    print(f"Processing mammogram image: {args.image}")
+    try:
+        original_image, image_tensor, scale = preprocess_image(args.image)
+    except Exception as e:
+        print(f"Error preprocessing image: {e}")
+        sys.exit(1)
     
     # Run inference
     with torch.no_grad():
@@ -115,14 +183,24 @@ def main():
             image_tensor = image_tensor.cuda()
         
         start_time = time.time()
-        scores, labels, boxes = retinanet(image_tensor.float())
-        print(f"Inference time: {time.time() - start_time:.4f} seconds")
+        try:
+            scores, labels, boxes = retinanet(image_tensor.float())
+            print(f"Inference time: {time.time() - start_time:.4f} seconds")
+        except Exception as e:
+            print(f"Error during inference: {e}")
+            print("This could be due to model compatibility issues.")
+            sys.exit(1)
     
     # Filter detections by score threshold
     idxs = np.where(scores.cpu().numpy() > args.score_threshold)[0]
     
     # Draw bounding boxes and labels
     print(f"Found {len(idxs)} detections above threshold {args.score_threshold}")
+    
+    # Store results for later reporting
+    results = []
+    benign_count = 0
+    malignant_count = 0
     
     # Process and draw detections
     for i in idxs:
@@ -134,19 +212,78 @@ def main():
         box_coords = [int(box[0]), int(box[1]), int(box[2]), int(box[3])]
         
         # Get class name
-        class_name = COCO_CLASSES.get(label, f"Class {label}")
-        caption = f"{class_name}: {score:.2f}"
+        class_name = DDSM_CLASSES.get(label, f"Class {label}")
+        color = get_prediction_color(class_name)
+        caption = f"{class_name}: {score:.3f}"
+        
+        # Store result
+        results.append({
+            'class': class_name,
+            'score': score,
+            'box': box_coords
+        })
+        
+        # Count by class
+        if class_name == 'benign':
+            benign_count += 1
+        elif class_name == 'malignant':
+            malignant_count += 1
         
         # Draw bounding box
-        cv2.rectangle(original_image, (box_coords[0], box_coords[1]), (box_coords[2], box_coords[3]), (0, 0, 255), 2)
+        cv2.rectangle(original_image, (box_coords[0], box_coords[1]), (box_coords[2], box_coords[3]), color, 2)
         
         # Draw caption
-        draw_caption(original_image, box_coords, caption)
+        draw_caption(original_image, box_coords, caption, color)
+    
+    # Summarize findings with largest mass or highest confidence finding
+    if results:
+        # Sort by confidence score
+        results.sort(key=lambda x: x['score'], reverse=True)
+        highest_conf = results[0]
+        
+        # Calculate mass area for each detection
+        for result in results:
+            box = result['box']
+            width = box[2] - box[0]
+            height = box[3] - box[1]
+            result['area'] = width * height
+        
+        # Find largest mass
+        largest_mass = max(results, key=lambda x: x['area'])
+        
+        # Draw summary on the image
+        summary_text = []
+        summary_text.append(f"Highest confidence: {highest_conf['class']} ({highest_conf['score']:.3f})")
+        
+        if largest_mass != highest_conf:
+            summary_text.append(f"Largest mass: {largest_mass['class']} ({largest_mass['score']:.3f})")
+        
+        summary_text.append(f"Summary: {benign_count} benign, {malignant_count} malignant masses detected")
+        
+        # Add summary text to the top of the image
+        for i, text in enumerate(summary_text):
+            y_pos = 30 + i * 30
+            cv2.putText(original_image, text, (10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 
+                        0.7, (255, 255, 255), 2, cv2.LINE_AA)
+    else:
+        # If no detections, add text indicating no findings
+        cv2.putText(original_image, "No significant findings detected", (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
     
     # Save the output image
     print(f"Saving result to: {args.output}")
     cv2.imwrite(args.output, original_image)
-    print(f"Done! Detected {len(idxs)} objects.")
+    
+    # Print summary to console
+    print("\n===== MAMMOGRAM ANALYSIS RESULTS =====")
+    if results:
+        print(f"Total detections: {len(results)}")
+        print(f"Benign masses: {benign_count}")
+        print(f"Malignant masses: {malignant_count}")
+        print(f"Highest confidence detection: {highest_conf['class']} with {highest_conf['score']:.3f} confidence")
+    else:
+        print("No significant findings detected")
+    print("=====================================")
 
 if __name__ == '__main__':
     main()
