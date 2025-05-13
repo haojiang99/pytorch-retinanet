@@ -1,15 +1,24 @@
 <script>
   import { useNavigate, useLocation } from 'svelte-navigator';
+  import { onMount } from 'svelte';
+  import { marked } from 'marked';
+  import DOMPurify from 'dompurify';
   
   const navigate = useNavigate();
   const location = useLocation();
   
   // Get result data from navigation state
   let result = null;
+  let geminiHtml = '';
   
   $: {
     if ($location.state && $location.state.result) {
       result = $location.state.result;
+      
+      // Convert Gemini markdown to HTML if available
+      if (result.summary && result.summary.gemini_analysis) {
+        geminiHtml = DOMPurify.sanitize(marked.parse(result.summary.gemini_analysis));
+      }
     } else {
       // If no result data, redirect to home
       navigate('/');
@@ -26,6 +35,59 @@
     navigate('/');
   }
 </script>
+
+<style>
+  /* Style for the Gemini markdown content */
+  :global(.gemini-content h2) {
+    color: #6a1b9a;
+    margin-top: 1.5rem;
+    font-size: 1.5rem;
+    border-bottom: 2px solid #e1bee7;
+    padding-bottom: 0.5rem;
+  }
+  
+  :global(.gemini-content h3) {
+    color: #8e24aa;
+    margin-top: 1.2rem;
+    font-size: 1.2rem;
+  }
+  
+  :global(.gemini-content ul) {
+    padding-left: 1.5rem;
+  }
+  
+  :global(.gemini-content li) {
+    margin-bottom: 0.5rem;
+  }
+  
+  :global(.gemini-content p) {
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+  
+  :global(.gemini-content strong) {
+    font-weight: 600;
+    color: #4a148c;
+  }
+  
+  :global(.gemini-content blockquote) {
+    border-left: 3px solid #9c27b0;
+    padding-left: 1rem;
+    margin-left: 0;
+    color: #666;
+    font-style: italic;
+  }
+  
+  .benign {
+    color: #43a047;
+    font-weight: bold;
+  }
+  
+  .malignant {
+    color: #d32f2f;
+    font-weight: bold;
+  }
+</style>
 
 {#if result}
   <div class="card">
@@ -118,8 +180,8 @@
           {#if result.summary.gemini_analysis}
             <div class="p-4 mt-4" style="background-color: #f3e5f5; border-radius: 4px; border-left: 4px solid #9c27b0;">
               <h4 style="color: #6a1b9a;">Gemini AI Radiologist Analysis</h4>
-              <div style="white-space: pre-line;">
-                {result.summary.gemini_analysis}
+              <div class="gemini-content">
+                {@html geminiHtml}
               </div>
             </div>
           {/if}

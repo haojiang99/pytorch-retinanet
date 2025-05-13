@@ -73,7 +73,7 @@ class GeminiClient:
         """Construct prompt for Gemini based on RetinaNet prediction results"""
         prompt = """
 You are an AI radiologist assistant specialized in mammogram analysis. 
-Please analyze this mammogram image and provide a detailed reading. 
+Please analyze this single-view mammogram image and provide a detailed reading.
 
 RetinaNet prediction results:
 """
@@ -98,13 +98,25 @@ RetinaNet prediction results:
                     prompt += f"size: {width}x{height} pixels, area: {area} pixels)\n"
         
         prompt += """
-Please provide:
-1. Identification of any suspicious masses or calcifications (describe their appearance, location, and characteristics)
-2. Assessment of the findings (e.g., BI-RADS category if possible)
-3. Any recommendations for follow-up or additional imaging that would be appropriate
-4. Overall impression
+Please provide your analysis in the following markdown format:
 
-Focus on being accurate, clear, and concise in your assessment.
+## Mammogram Analysis
+
+### RetinaNet Findings Assessment
+* [Brief interpretation of the detected masses from RetinaNet]
+
+### Additional Suspicious Areas
+* [Describe any additional suspicious areas not detected by RetinaNet, if any]
+* [Include location descriptions and characteristics]
+
+### Impression
+* [Provide overall impression of the mammogram]
+* [Note any limitations due to this being a single-view image]
+
+### Recommendations
+* [Suggest appropriate next steps or follow-up]
+
+Focus on being accurate, clear, and concise. Do NOT assign a BI-RADS category as this is a single-view image. Highlight any potential area of concern that might have been missed by the AI detection system.
 """
         return prompt
     
