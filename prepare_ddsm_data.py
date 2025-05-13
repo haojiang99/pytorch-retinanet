@@ -22,11 +22,11 @@ import re
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Prepare DDSM data for RetinaNet training')
-    parser.add_argument('--csv_file', default='/Users/haojiang/Documents/DDSM/manifest-ZkhPvrLo5216730872708713142/calc_case_description_test_set.csv',
+    parser.add_argument('--csv_file', default='d:/TCIA/manifest-ZkhPvrLo5216730872708713142/calc_case_description_train_set.csv',
                         help='Path to the calc_case_description_test_set.csv file')
-    parser.add_argument('--ddsm_dir', default='/Users/haojiang/Documents/DDSM/manifest-ZkhPvrLo5216730872708713142/CBIS-DDSM',
+    parser.add_argument('--ddsm_dir', default='d:/TCIA/manifest-ZkhPvrLo5216730872708713142/CBIS-DDSM',
                         help='Path to the CBIS-DDSM directory')
-    parser.add_argument('--output_dir', default='ddsm_retinanet_data',
+    parser.add_argument('--output_dir', default='ddsm_retinanet_data_calc_train',
                         help='Output directory for prepared data')
     parser.add_argument('--limit', type=int, default=None,
                         help='Limit processing to N samples (for testing)')
@@ -122,8 +122,10 @@ def process_case(row, ddsm_dir, output_dir):
     pathology = row['pathology']
     
     # Create search pattern for finding corresponding files
-    search_prefix = f"Calc-Test_{patient_id}_{breast_side}_{view}"
-    roi_search_prefix = f"Calc-Test_{patient_id}_{breast_side}_{view}_{abnorm_id}"
+    search_prefix = f"Calc-Training_{patient_id}_{breast_side}_{view}"
+    # search_prefix = f"Calc-Test_{patient_id}_{breast_side}_{view}"
+    roi_search_prefix = f"Calc-Training_{patient_id}_{breast_side}_{view}_{abnorm_id}"
+    # roi_search_prefix = f"Calc-Test_{patient_id}_{breast_side}_{view}_{abnorm_id}"
     
     # Find image and mask DICOM files
     image_dicom = find_dicom_files(ddsm_dir, search_prefix, view)
