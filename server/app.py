@@ -10,6 +10,9 @@ import time
 import base64
 import logging
 
+# Import configuration
+from config import MODEL_PATH, SERVER_HOST, SERVER_PORT, DEBUG_MODE
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
@@ -51,7 +54,6 @@ DDSM_CLASSES = {
 }
 
 # Load model
-MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'model_final.pt')
 print(MODEL_PATH)
 retinanet = None
 
@@ -176,7 +178,7 @@ def get_prediction_color(class_name):
     else:
         return (0, 0, 255)  # Red for malignant
 
-def process_image(image_path, score_threshold=0.3):
+def process_image(image_path, score_threshold=0.3, use_gemini=True):
     """Process an image and return detection results"""
     global retinanet
     
@@ -298,6 +300,31 @@ def process_image(image_path, score_threshold=0.3):
     with open(result_path, "rb") as img_file:
         img_data = base64.b64encode(img_file.read()).decode('utf-8')
     
+    # Get Gemini analysis if enabled
+    gemini_analysis = None
+    if use_gemini:
+        try:
+            # Import Gemini client
+            from gemini_client import GeminiClient
+            
+            # Create Gemini client
+            gemini_client = GeminiClient()
+            
+            # Get Gemini analysis
+            gemini_result = gemini_client.analyze_mammogram(original_image, summary)
+            
+            if gemini_result.get('success', False):
+                gemini_analysis = gemini_result.get('gemini_analysis')
+                logger.info("Gemini analysis completed successfully")
+            else:
+                logger.warning(f"Gemini analysis failed: {gemini_result.get('error', 'Unknown error')}")
+        except Exception as e:
+            logger.error(f"Error during Gemini analysis: {str(e)}")
+    
+    # Add Gemini analysis to summary
+    if gemini_analysis:
+        summary['gemini_analysis'] = gemini_analysis
+    
     return summary, result_filename, img_data, None
 
 @app.route('/api/predict', methods=['POST'])
@@ -344,9 +371,13 @@ def predict():
     threshold = float(request.form.get('threshold', 0.3))
     logger.debug(f"Using threshold: {threshold}")
     
+    # Get Gemini analysis parameter (optional)
+    use_gemini = request.form.get('use_gemini', 'true').lower() == 'true'
+    logger.debug(f"Using Gemini analysis: {use_gemini}")
+    
     # Process the image
     logger.info("Processing image...")
-    summary, result_filename, img_data, error = process_image(filepath, threshold)
+    summary, result_filename, img_data, error = process_image(filepath, threshold, use_gemini)
     
     if error:
         logger.error(f"Image processing error: {error}")
@@ -368,7 +399,12 @@ def predict():
         'image_data': f"data:image/jpeg;base64,{img_data}"
     }
     
-    logger.info(f"Prediction complete. Found {summary['total']} masses.")
+    # Log completion message
+    if 'gemini_analysis' in summary:
+        logger.info(f"Prediction complete with Gemini analysis. Found {summary['total']} masses.")
+    else:
+        logger.info(f"Prediction complete. Found {summary['total']} masses.")
+    
     return jsonify(response), 200
 
 @app.route('/api/results/<filename>', methods=['GET'])
@@ -413,5 +449,5 @@ if __name__ == '__main__':
     logger.info(f"Model path: {MODEL_PATH}")
     
     # Start Flask app
-    logger.info("Starting Flask server on port 5001")
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    logger.info(f"Starting Flask server on {SERVER_HOST}:{SERVER_PORT}")
+    app.run(host=SERVER_HOST, port=SERVER_PORT, debug=DEBUG_MODE)

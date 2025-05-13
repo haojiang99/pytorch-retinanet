@@ -114,6 +114,15 @@
               {/each}
             </div>
           {/if}
+          
+          {#if result.summary.gemini_analysis}
+            <div class="p-4 mt-4" style="background-color: #f3e5f5; border-radius: 4px; border-left: 4px solid #9c27b0;">
+              <h4 style="color: #6a1b9a;">Gemini AI Radiologist Analysis</h4>
+              <div style="white-space: pre-line;">
+                {result.summary.gemini_analysis}
+              </div>
+            </div>
+          {/if}
         {/if}
       </div>
     </div>

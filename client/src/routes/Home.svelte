@@ -6,6 +6,7 @@
   let dragging = false;
   let uploading = false;
   let error = null;
+  let useGemini = true; // Default to using Gemini analysis
   
   // Server API URL
   const API_URL = 'http://localhost:5001/api';
@@ -60,6 +61,7 @@
       // Create FormData object
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('use_gemini', useGemini.toString());
       
       console.log(API_URL);
       // Send request to server
@@ -136,6 +138,19 @@
   
   <!-- Upload button -->
   <div class="text-center">
+    <!-- Gemini option checkbox -->
+    <div class="p-3 mb-3" style="background-color: #f3e5f5; border-radius: 4px;">
+      <label style="display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+        <input type="checkbox" bind:checked={useGemini} style="width: 16px; height: 16px;">
+        <span>Use Gemini AI for advanced mammogram interpretation</span>
+      </label>
+      {#if useGemini}
+        <div class="mt-2" style="font-size: 0.9em; color: #6a1b9a;">
+          Gemini AI will provide detailed radiologist-like analysis of suspicious masses and calcifications
+        </div>
+      {/if}
+    </div>
+    
     <button 
       class="btn btn-primary" 
       on:click={uploadImage} 
