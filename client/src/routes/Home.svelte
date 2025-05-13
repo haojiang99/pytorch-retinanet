@@ -1,6 +1,7 @@
 <script>
   import { navigate } from 'svelte-navigator';
   
+  // State
   let file;
   let fileInput;
   let dragging = false;
@@ -8,6 +9,7 @@
   let error = null;
   let useGemini = true; // Default to using Gemini analysis
   let currentTab = 'upload'; // 'upload' or 'workflow'
+  let filePreview = null;
   
   // Server API URL
   const API_URL = 'http://localhost:5001/api';
@@ -19,6 +21,7 @@
     
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
       file = event.dataTransfer.files[0];
+      createFilePreview(file);
     }
   }
   
@@ -37,7 +40,26 @@
   function handleFileChange(event) {
     if (event.target.files && event.target.files.length > 0) {
       file = event.target.files[0];
+      createFilePreview(file);
     }
+  }
+  
+  // Create file preview
+  function createFilePreview(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      filePreview = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  
+  // Clear selected file
+  function clearFile() {
+    file = null;
+    filePreview = null;
+    if (fileInput) fileInput.value = '';
   }
   
   // Handle file upload
@@ -324,9 +346,165 @@
   
   .examples-row {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
     gap: 1.5rem;
     margin-top: 3rem;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .select-file-btn {
+    background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 30px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 10px rgba(233, 30, 99, 0.3);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .select-file-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(233, 30, 99, 0.4);
+  }
+  
+  .select-file-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(233, 30, 99, 0.3);
+  }
+  
+  .select-file-btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+    border-radius: 30px;
+  }
+  
+  .logo-container {
+    margin-bottom: 1.5rem;
+  }
+  
+  .logo {
+    max-width: 200px;
+    height: auto;
+    border: none;
+    box-shadow: none;
+  }
+  
+  .file-preview-container {
+    margin-top: 1.5rem;
+    position: relative;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .file-preview {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    object-fit: contain;
+    border-radius: 8px;
+    border: 3px solid #f8bbd0;
+    background-color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .file-preview-caption {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #c2185b;
+    text-align: center;
+  }
+  
+  .clear-file-btn {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #e91e63;
+    color: white;
+    border: 2px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+  }
+  
+  .clear-file-btn:hover {
+    background-color: #c2185b;
+    transform: scale(1.1);
+  }
+  
+  .analyze-btn {
+    background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 14px 40px;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(233, 30, 99, 0.4);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    letter-spacing: 0.5px;
+    margin: 2rem auto;
+    position: relative;
+    overflow: hidden;
+    width: 280px;
+  }
+  
+  .analyze-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 25px rgba(233, 30, 99, 0.5);
+  }
+  
+  .analyze-btn:active {
+    transform: translateY(-1px);
+  }
+  
+  .analyze-btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: 0.5s;
+  }
+  
+  .analyze-btn:hover::after {
+    left: 100%;
+  }
+  
+  .analyze-btn-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+    width: 100%;
   }
   
   @media (max-width: 768px) {
@@ -351,6 +529,9 @@
 </style>
 
 <div class="hero">
+  <div class="logo-container">
+    <img src="/examples/NeuralRadLogo.png" alt="NeuralRad Logo" class="logo" />
+  </div>
   <h1>Neuralrad Mammo AI</h1>
   <p>Advanced AI-powered mammogram analysis for accurate and reliable breast cancer detection</p>
   
@@ -378,16 +559,40 @@
       on:dragover={handleDragOver}
       on:dragleave={handleDragLeave}
     >
-      <div class="upload-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-      </div>
-      <h3>Drop Mammogram Image Here</h3>
-      <p>or</p>
-      <button class="btn" on:click={() => fileInput.click()}>Select File</button>
+      {#if file && filePreview}
+        <!-- File preview -->
+        <div class="file-preview-container">
+          <button class="clear-file-btn" on:click={clearFile}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <img src={filePreview} alt="Selected mammogram" class="file-preview" />
+          <div class="file-preview-caption">
+            {file.name} ({Math.round(file.size / 1024)} KB)
+          </div>
+        </div>
+      {:else}
+        <div class="upload-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <h3>Drop Mammogram Image Here</h3>
+        <p>or</p>
+        <button class="select-file-btn" on:click={() => fileInput.click()}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          Browse Files
+        </button>
+      {/if}
+      
       <input 
         type="file" 
         accept=".jpg,.jpeg,.png" 
@@ -395,10 +600,6 @@
         bind:this={fileInput} 
         on:change={handleFileChange}
       />
-      
-      {#if file}
-        <p class="mt-4">Selected file: {file.name}</p>
-      {/if}
     </div>
     
     <!-- Analysis option -->
@@ -420,15 +621,28 @@
     {/if}
     
     <!-- Upload button -->
-    <div class="text-center">
+    <div class="analyze-btn-container">
       <button 
-        class="btn btn-primary upload-button" 
+        class="analyze-btn" 
         on:click={uploadImage} 
         disabled={!file || uploading}
       >
         {#if uploading}
+          <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="2" x2="12" y2="6"></line>
+            <line x1="12" y1="18" x2="12" y2="22"></line>
+            <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+            <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+            <line x1="2" y1="12" x2="6" y2="12"></line>
+            <line x1="18" y1="12" x2="22" y2="12"></line>
+            <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+            <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+          </svg>
           Processing...
         {:else}
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
           Analyze Mammogram
         {/if}
       </button>

@@ -206,11 +206,83 @@
     background-color: #e1bee7;
   }
   
-  .zoom-text {
-    display: inline-block;
-    padding: 5px 10px;
-    font-size: 14px;
-    color: #6a1b9a;
+  .analyze-btn {
+    background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 14px 40px;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(233, 30, 99, 0.4);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    letter-spacing: 0.5px;
+    margin: 2rem auto;
+    position: relative;
+    overflow: hidden;
+    min-width: 280px;
+  }
+  
+  .analyze-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 25px rgba(233, 30, 99, 0.5);
+  }
+  
+  .analyze-btn:active {
+    transform: translateY(-1px);
+  }
+  
+  .analyze-btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: 0.5s;
+  }
+  
+  .analyze-btn:hover::after {
+    left: 100%;
+  }
+  
+  /* Force the two column layout */
+  .two-column-layout {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: nowrap !important;
+  }
+  
+  .column {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .left-column {
+    width: 50%;
+  }
+  
+  .right-column {
+    width: 50%;
+  }
+  
+  @media (max-width: 768px) {
+    /* On mobile, still try to maintain side-by-side */
+    .two-column-layout {
+      flex-direction: row;
+      overflow-x: auto;
+    }
+    
+    .column {
+      min-width: 300px;
+      flex-shrink: 0;
+    }
   }
 </style>
 
@@ -218,9 +290,9 @@
   <div class="card">
     <h2 class="text-center">Mammography Analysis Results</h2>
     
-    <div class="flex" style="gap: 1.5rem; flex-wrap: wrap;">
+    <div class="two-column-layout">
       <!-- Left column: Image with annotations -->
-      <div style="flex: 1; min-width: 400px;">
+      <div class="column left-column">
         <h3>Detected Regions</h3>
         
         <!-- Image toolbar -->
@@ -279,7 +351,7 @@
       </div>
       
       <!-- Right column: Analysis summary -->
-      <div style="flex: 1; min-width: 300px;">
+      <div class="column right-column">
         <h3>Analysis Summary</h3>
         
         {#if result.summary.total === 0}
@@ -352,7 +424,7 @@
       </div>
     </div>
     
-    <!-- Gemini Analysis Section (Full Width) -->
+    <!-- Neuralrad AI Analysis Section (Full Width) -->
     {#if result.summary.gemini_analysis}
       <div class="p-4 mt-4" style="background-color: #f3e5f5; border-radius: 4px; border-left: 4px solid #9c27b0;">
         <h3 style="color: #6a1b9a;">Neuralrad AI Analysis</h3>
@@ -363,7 +435,11 @@
     {/if}
     
     <div class="text-center mt-4">
-      <button class="btn" on:click={goBack}>
+      <button class="analyze-btn" on:click={goBack}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+        </svg>
         Upload Another Image
       </button>
     </div>
