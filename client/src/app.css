@@ -1,125 +1,128 @@
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+:global(body) {
+  font-family: 'Poppins', sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background-color: #fafafa;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+:global(h1), :global(h2), :global(h3), :global(h4) {
+  font-weight: 600;
+  line-height: 1.3;
 }
 
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  width: 100%;
+:global(button), :global(input), :global(select), :global(textarea) {
+  font-family: 'Poppins', sans-serif;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
-
-.btn {
+:global(.btn) {
+  display: inline-block;
+  background-color: #e91e63;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
   font-weight: 500;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-family: inherit;
-  background-color: #1a1a1a;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-.btn:hover {
-  border-color: #646cff;
-}
-.btn:focus,
-.btn:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  transition: all 0.3s ease;
+  text-align: center;
+  text-decoration: none;
 }
 
-.btn-primary {
-  background-color: #4a76a8;
+:global(.btn:hover) {
+  background-color: #d81b60;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(233, 30, 99, 0.2);
+}
+
+:global(.btn:active) {
+  transform: translateY(0);
+}
+
+:global(.btn-primary) {
+  background-color: #e91e63;
   color: white;
 }
 
-.container {
+:global(.btn-outline) {
+  background-color: transparent;
+  border: 2px solid #e91e63;
+  color: #e91e63;
+}
+
+:global(.btn-outline:hover) {
+  background-color: #e91e63;
+  color: white;
+}
+
+:global(.card) {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+:global(.container) {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 24px;
 }
 
-.card {
-  padding: 1.5em;
-  border-radius: 8px;
-  background-color: #f9f9f9;
-  color: #213547;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  margin-bottom: 1rem;
-}
-
-.text-center {
+:global(.text-center) {
   text-align: center;
 }
 
-.flex {
+:global(.mb-4) {
+  margin-bottom: 1.5rem;
+}
+
+:global(.mt-4) {
+  margin-top: 1.5rem;
+}
+
+:global(.p-4) {
+  padding: 1.5rem;
+}
+
+:global(.flex) {
   display: flex;
 }
 
-.flex-col {
-  flex-direction: column;
+:global(.flex-wrap) {
+  flex-wrap: wrap;
 }
 
-.justify-center {
-  justify-content: center;
-}
-
-.items-center {
+:global(.items-center) {
   align-items: center;
 }
 
-.gap-4 {
-  gap: 1rem;
+:global(.justify-center) {
+  justify-content: center;
 }
 
-.benign {
-  color: green;
+:global(.gap-4) {
+  gap: 1.5rem;
 }
 
-.malignant {
-  color: red;
+:global(.w-full) {
+  width: 100%;
 }
 
-.mb-4 {
-  margin-bottom: 1rem;
+:global(.text-pink) {
+  color: #e91e63;
 }
 
-.mt-4 {
-  margin-top: 1rem;
+:global(.text-pink-dark) {
+  color: #c2185b;
 }
 
-.p-4 {
-  padding: 1rem;
+:global(.bg-pink-50) {
+  background-color: #fce4ec;
+}
+
+:global(.bg-pink-100) {
+  background-color: #f8bbd0;
 }
