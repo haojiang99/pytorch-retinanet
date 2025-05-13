@@ -16,7 +16,7 @@
     </main>
     
     <footer class="text-center mt-4">
-      <p>Mammography Analysis Tool © 2025</p>
+      <p>Neuralrad Mammo AI © 2025</p>
     </footer>
   </div>
 </Router>

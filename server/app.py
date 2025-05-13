@@ -47,13 +47,16 @@ RESULT_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
 
-# DDSM dataset classes for mammogram mass detection
+# DDSM dataset classes for mammogram detection
 DDSM_CLASSES = {
-    0: 'benign', 
-    1: 'malignant'
+    0: 'benign mass', 
+    1: 'malignant mass',
+    2: 'benign calcification',
+    3: 'malignant calcification'
 }
 
 # Load model
+MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ddsm_checkpoints', 'ddsm_retinanet_89.pt')
 print(MODEL_PATH)
 retinanet = None
 
@@ -173,10 +176,14 @@ def draw_caption(image, box, caption, color=(0, 0, 255)):
 
 def get_prediction_color(class_name):
     """Return different colors based on the prediction class"""
-    if class_name == 'benign':
-        return (0, 255, 0)  # Green for benign
+    if 'benign mass' in class_name:
+        return (0, 255, 0)  # Green for benign mass
+    elif 'malignant mass' in class_name:
+        return (0, 0, 255)  # Red for malignant mass
+    elif 'benign calcification' in class_name:
+        return (255, 255, 0)  # Yellow for benign calcification
     else:
-        return (0, 0, 255)  # Red for malignant
+        return (255, 0, 0)  # Blue for malignant calcification
 
 def process_image(image_path, score_threshold=0.3, use_gemini=True):
     """Process an image and return detection results"""
@@ -207,8 +214,10 @@ def process_image(image_path, score_threshold=0.3, use_gemini=True):
     
     # Store results
     results = []
-    benign_count = 0
-    malignant_count = 0
+    mass_benign_count = 0
+    mass_malignant_count = 0
+    calc_benign_count = 0
+    calc_malignant_count = 0
     
     # Process and draw detections
     for i in idxs:
@@ -232,10 +241,14 @@ def process_image(image_path, score_threshold=0.3, use_gemini=True):
         })
         
         # Count by class
-        if class_name == 'benign':
-            benign_count += 1
-        elif class_name == 'malignant':
-            malignant_count += 1
+        if class_name == 'benign mass':
+            mass_benign_count += 1
+        elif class_name == 'malignant mass':
+            mass_malignant_count += 1
+        elif class_name == 'benign calcification':
+            calc_benign_count += 1
+        elif class_name == 'malignant calcification':
+            calc_malignant_count += 1
         
         # Draw bounding box
         cv2.rectangle(original_image, (box_coords[0], box_coords[1]), (box_coords[2], box_coords[3]), color, 2)
@@ -246,8 +259,10 @@ def process_image(image_path, score_threshold=0.3, use_gemini=True):
     # Summary info
     summary = {
         'total': len(results),
-        'benign': benign_count,
-        'malignant': malignant_count,
+        'mass_benign': mass_benign_count,
+        'mass_malignant': mass_malignant_count,
+        'calc_benign': calc_benign_count,
+        'calc_malignant': calc_malignant_count,
         'findings': []
     }
     
@@ -275,9 +290,10 @@ def process_image(image_path, score_threshold=0.3, use_gemini=True):
         summary_text.append(f"Highest confidence: {highest_conf['class']} ({highest_conf['score']:.3f})")
         
         if largest_mass != highest_conf:
-            summary_text.append(f"Largest mass: {largest_mass['class']} ({largest_mass['score']:.3f})")
+            summary_text.append(f"Largest finding: {largest_mass['class']} ({largest_mass['score']:.3f})")
         
-        summary_text.append(f"Summary: {benign_count} benign, {malignant_count} malignant masses detected")
+        summary_text.append(f"Summary: {mass_benign_count} benign masses, {mass_malignant_count} malignant masses")
+        summary_text.append(f"         {calc_benign_count} benign calcifications, {calc_malignant_count} malignant calcifications")
         
         # Add summary text to the top of the image
         for i, text in enumerate(summary_text):

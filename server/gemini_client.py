@@ -79,14 +79,23 @@ Detection results:
 """
         
         if not prediction_results:
-            prompt += "No masses detected by the first-stage detector.\n"
+            prompt += "No findings detected by the first-stage detector.\n"
         else:
             prompt += f"Total findings: {prediction_results.get('total', 0)}\n"
-            prompt += f"Benign masses: {prediction_results.get('benign', 0)}\n"
-            prompt += f"Malignant masses: {prediction_results.get('malignant', 0)}\n\n"
+            
+            # Add counts for each type
+            mass_benign = prediction_results.get('mass_benign', 0)
+            mass_malignant = prediction_results.get('mass_malignant', 0)
+            calc_benign = prediction_results.get('calc_benign', 0)
+            calc_malignant = prediction_results.get('calc_malignant', 0)
+            
+            prompt += f"Benign masses: {mass_benign}\n"
+            prompt += f"Malignant masses: {mass_malignant}\n"
+            prompt += f"Benign calcifications: {calc_benign}\n"
+            prompt += f"Malignant calcifications: {calc_malignant}\n\n"
             
             if 'findings' in prediction_results and prediction_results['findings']:
-                prompt += "Detected masses:\n"
+                prompt += "Detected findings:\n"
                 for i, finding in enumerate(prediction_results['findings']):
                     box = finding.get('box', [0, 0, 0, 0])
                     width = box[2] - box[0]
@@ -103,7 +112,7 @@ Please provide your analysis in the following markdown format:
 ## Mammogram Analysis
 
 ### Primary Detection Findings
-* [Brief interpretation of the detected masses from the first-stage detector]
+* [Brief interpretation of the detected masses and calcifications from the first-stage detector]
 
 ### Additional Suspicious Areas
 * [Describe any additional suspicious areas not detected by the first-stage detector, if any]
@@ -116,7 +125,7 @@ Please provide your analysis in the following markdown format:
 ### Recommendations
 * [Suggest appropriate next steps or follow-up]
 
-Focus on being accurate, clear, and concise. Do NOT assign a BI-RADS category as this is a single-view image. Highlight any potential area of concern that might have been missed by the initial detection system.
+Focus on being accurate, clear, and concise. Do NOT assign a BI-RADS category as this is a single-view image. Highlight any potential area of concern that might have been missed by the initial detection system. Distinguish between masses and calcifications in your analysis.
 """
         return prompt
     

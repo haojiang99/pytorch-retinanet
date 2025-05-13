@@ -15,11 +15,11 @@ from tqdm import tqdm
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Visualize prepared DDSM data')
-    parser.add_argument('--annotations', default='ddsm_retinanet_data_mass_test/annotations.csv',
+    parser.add_argument('--annotations', default='ddsm_retinanet_data_mass_train2/annotations.csv',
                         help='Path to the annotations CSV file')
-    parser.add_argument('--class_map', default='ddsm_retinanet_data_mass_test/class_map.csv',
+    parser.add_argument('--class_map', default='ddsm_retinanet_data_mass_train2/class_map.csv',
                         help='Path to the class_map CSV file')
-    parser.add_argument('--output_dir', default='ddsm_mass_visualization',
+    parser.add_argument('--output_dir', default='ddsm_retinanet_data_mass_train2_visual',
                         help='Output directory for visualization images')
     parser.add_argument('--limit', type=int, default=None,
                         help='Limit visualization to N samples')
@@ -59,10 +59,10 @@ def visualize_annotation(image_path, x1, y1, x2, y2, class_name, output_path):
         
         # Draw bounding box with thicker lines (4 pixels)
         color = (0, 255, 0) if class_name == 'benign' else (0, 0, 255)  # Green for benign, Red for malignant
-        cv2.rectangle(image, (x1, y1), (x2, y2), color, 100)
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, 10)
         
         # Draw a contrasting outline to make the box more visible
-        cv2.rectangle(image, (x1-1, y1-1), (x2+1, y2+1), (255, 255, 255), 20)
+        cv2.rectangle(image, (x1-1, y1-1), (x2+1, y2+1), (255, 255, 255), 2)
         
         # Add label with improved visibility
         label = f"{class_name.upper()}"
@@ -93,9 +93,9 @@ def visualize_annotation(image_path, x1, y1, x2, y2, class_name, output_path):
                    label, 
                    (x1, y1 - 5),  # Position adjusted for better placement
                    cv2.FONT_HERSHEY_SIMPLEX, 
-                   24,  # Larger font size (was 0.9)
+                   3,  # Larger font size (was 0.9)
                    (255, 255, 255),  # White text
-                   5)  # Thicker font (was 2)
+                   3)  # Thicker font (was 2)
         
         # Save the image
         ensure_dir(os.path.dirname(output_path))

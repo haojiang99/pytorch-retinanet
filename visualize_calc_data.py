@@ -15,9 +15,9 @@ from tqdm import tqdm
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Visualize prepared DDSM data')
-    parser.add_argument('--annotations', default='ddsm_retinanet_data_mass_train_test/annotations.csv',
+    parser.add_argument('--annotations', default='ddsm_retinanet_data_mass_train2/annotations.csv',
                         help='Path to the annotations CSV file')
-    parser.add_argument('--class_map', default='ddsm_retinanet_data_mass_train_test/class_map.csv',
+    parser.add_argument('--class_map', default='ddsm_retinanet_data_mass_train2/class_map.csv',
                         help='Path to the class_map CSV file')
     parser.add_argument('--output_dir', default='ddsm_mass_visualization',
                         help='Output directory for visualization images')

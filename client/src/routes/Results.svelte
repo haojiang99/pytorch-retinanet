@@ -113,6 +113,37 @@
 </script>
 
 <style>
+  /* Hero section styles */
+  .hero {
+    background: linear-gradient(135deg, rgba(233, 30, 99, 0.9) 0%, rgba(156, 39, 176, 0.9) 100%);
+    color: white;
+    padding: 2.5rem 2rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+  
+  .results-hero {
+    padding: 2rem;
+  }
+  
+  .hero h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0;
+    font-weight: 700;
+  }
+  
+  .logo-container {
+    margin-bottom: 1rem;
+  }
+  
+  .logo {
+    max-width: 160px;
+    height: auto;
+    border: none;
+    box-shadow: none;
+  }
+  
   /* Style for the Gemini markdown content */
   :global(.gemini-content h2) {
     color: #6a1b9a;
@@ -164,6 +195,16 @@
     font-weight: bold;
   }
   
+  .benign-calc {
+    color: #9e9d24;
+    font-weight: bold;
+  }
+  
+  .malignant-calc {
+    color: #d84315;
+    font-weight: bold;
+  }
+  
   .image-container {
     position: relative;
     overflow: hidden;
@@ -204,6 +245,13 @@
   
   .tool-btn:hover {
     background-color: #e1bee7;
+  }
+  
+  .zoom-text {
+    display: inline-block;
+    padding: 5px 10px;
+    font-size: 14px;
+    color: #6a1b9a;
   }
   
   .analyze-btn {
@@ -287,9 +335,14 @@
 </style>
 
 {#if result}
+  <div class="hero results-hero">
+    <div class="logo-container">
+      <img src="/examples/NeuralRadLogo.png" alt="NeuralRad Logo" class="logo" />
+    </div>
+    <h1>Mammography Analysis Results</h1>
+  </div>
+
   <div class="card">
-    <h2 class="text-center">Mammography Analysis Results</h2>
-    
     <div class="two-column-layout">
       <!-- Left column: Image with annotations -->
       <div class="column left-column">
@@ -363,14 +416,16 @@
           <div class="p-4 mb-4" style="background-color: #f5f5f5; border-radius: 4px;">
             <h4>Detection Summary</h4>
             <p>
-              <strong>Total masses detected:</strong> {result.summary.total}
+              <strong>Total findings detected:</strong> {result.summary.total}
             </p>
             <p>
               <strong>Classification breakdown:</strong>
             </p>
             <ul>
-              <li><span class="benign">Benign masses:</span> {result.summary.benign}</li>
-              <li><span class="malignant">Malignant masses:</span> {result.summary.malignant}</li>
+              <li><span class="benign">Benign masses:</span> {result.summary.mass_benign || 0}</li>
+              <li><span class="malignant">Malignant masses:</span> {result.summary.mass_malignant || 0}</li>
+              <li><span class="benign-calc">Benign calcifications:</span> {result.summary.calc_benign || 0}</li>
+              <li><span class="malignant-calc">Malignant calcifications:</span> {result.summary.calc_malignant || 0}</li>
             </ul>
           </div>
           
