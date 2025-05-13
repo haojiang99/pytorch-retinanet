@@ -1,15 +1,48 @@
-import argparse
+import os
+import uuid
+import cv2
 import torch
 import numpy as np
-import cv2
-import os
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 import sys
+import time
+import base64
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Add parent directory to path to import retinanet modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from retinanet import model
 from retinanet.model import ResNet, Bottleneck, BasicBlock
-from retinanet.dataloader import Normalizer, Resizer
-from torchvision import transforms
-import time
 from torch import serialization
+
+# Configure Flask app
+app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "*"}})  # Enable Cross-Origin Resource Sharing for /api routes
+
+# Request logging
+@app.before_request
+def log_request_info():
+    logger.debug('Request Headers: %s', request.headers)
+    logger.debug('Request Method: %s', request.method)
+    logger.debug('Request URL: %s', request.url)
+    logger.debug('Request Path: %s', request.path)
+    if request.method == 'POST':
+        logger.debug('Form Data: %s', request.form)
+        logger.debug('Files: %s', [f for f in request.files])
+
+# Create upload directory for temporary storage of images
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+RESULT_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULT_FOLDER, exist_ok=True)
 
 # DDSM dataset classes for mammogram mass detection
 DDSM_CLASSES = {
@@ -17,7 +50,12 @@ DDSM_CLASSES = {
     1: 'malignant'
 }
 
-def load_model(model_path):
+# Load model
+MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'model_final.pt')
+print(MODEL_PATH)
+retinanet = None
+
+def load_model(model_path=MODEL_PATH):
     """Load RetinaNet model from checkpoint"""
     # Add safe globals for PyTorch 2.6+
     serialization.add_safe_globals([ResNet, Bottleneck, BasicBlock])
@@ -138,66 +176,34 @@ def get_prediction_color(class_name):
     else:
         return (0, 0, 255)  # Red for malignant
 
-def main():
-    parser = argparse.ArgumentParser(description='RetinaNet DDSM mammogram inference script')
-    parser.add_argument('--image', help='Path to input mammogram image', required=True)
-    parser.add_argument('--model', help='Path to model checkpoint', default='model_final.pt')
-    parser.add_argument('--score-threshold', type=float, help='Score threshold for detections', default=0.3)
-    parser.add_argument('--output', help='Path to save output image', default='output_ddsm.jpg')
+def process_image(image_path, score_threshold=0.3):
+    """Process an image and return detection results"""
+    global retinanet
     
-    args = parser.parse_args()
+    # Load model if not loaded
+    if retinanet is None:
+        retinanet = load_model()
     
-    # Check if the image exists
-    if not os.path.isfile(args.image):
-        print(f"Error: Image file '{args.image}' not found.")
-        sys.exit(1)
-    
-    # Check if the model exists
-    if not os.path.isfile(args.model):
-        print(f"Error: Model file '{args.model}' not found.")
-        print("Available model files:")
-        model_files = [f for f in os.listdir('.') if f.endswith('.pt')]
-        for model_file in model_files:
-            print(f"  - {model_file}")
-        sys.exit(1)
-    
-    # Load model
-    print("Loading model...")
+    # Preprocess image
     try:
-        retinanet = load_model(args.model)
+        original_image, image_tensor, scale = preprocess_image(image_path)
     except Exception as e:
-        print(f"Failed to load model: {e}")
-        sys.exit(1)
-    
-    # Load and preprocess image
-    print(f"Processing mammogram image: {args.image}")
-    try:
-        original_image, image_tensor, scale = preprocess_image(args.image)
-    except Exception as e:
-        print(f"Error preprocessing image: {e}")
-        sys.exit(1)
+        return None, None, str(e)
     
     # Run inference
     with torch.no_grad():
         if torch.cuda.is_available():
             image_tensor = image_tensor.cuda()
         
-        start_time = time.time()
         try:
             scores, labels, boxes = retinanet(image_tensor.float())
-            print(f"Inference time: {time.time() - start_time:.4f} seconds")
         except Exception as e:
-            print(f"Error during inference: {e}")
-            print("This could be due to model compatibility issues.")
-            sys.exit(1)
+            return None, None, str(e)
     
     # Filter detections by score threshold
-    idxs = np.where(scores.cpu().numpy() > args.score_threshold)[0]
+    idxs = np.where(scores.cpu().numpy() > score_threshold)[0]
     
-    # Draw bounding boxes and labels
-    print(f"Found {len(idxs)} detections above threshold {args.score_threshold}")
-    
-    # Store results for later reporting
+    # Store results
     results = []
     benign_count = 0
     malignant_count = 0
@@ -235,11 +241,20 @@ def main():
         # Draw caption
         draw_caption(original_image, box_coords, caption, color)
     
-    # Summarize findings with largest mass or highest confidence finding
+    # Summary info
+    summary = {
+        'total': len(results),
+        'benign': benign_count,
+        'malignant': malignant_count,
+        'findings': []
+    }
+    
+    # Process findings for summary
     if results:
         # Sort by confidence score
         results.sort(key=lambda x: x['score'], reverse=True)
         highest_conf = results[0]
+        summary['highest_confidence'] = highest_conf
         
         # Calculate mass area for each detection
         for result in results:
@@ -247,11 +262,11 @@ def main():
             width = box[2] - box[0]
             height = box[3] - box[1]
             result['area'] = width * height
+            summary['findings'].append(result)
         
-        print(results)
-
         # Find largest mass
         largest_mass = max(results, key=lambda x: x['area'])
+        summary['largest_mass'] = largest_mass
         
         # Draw summary on the image
         summary_text = []
@@ -272,20 +287,131 @@ def main():
         cv2.putText(original_image, "No significant findings detected", (10, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
     
-    # Save the output image
-    print(f"Saving result to: {args.output}")
-    cv2.imwrite(args.output, original_image)
+    # Generate unique filename for result
+    result_filename = f"{str(uuid.uuid4())}.jpg"
+    result_path = os.path.join(RESULT_FOLDER, result_filename)
     
-    # Print summary to console
-    print("\n===== MAMMOGRAM ANALYSIS RESULTS =====")
-    if results:
-        print(f"Total detections: {len(results)}")
-        print(f"Benign masses: {benign_count}")
-        print(f"Malignant masses: {malignant_count}")
-        print(f"Highest confidence detection: {highest_conf['class']} with {highest_conf['score']:.3f} confidence")
-    else:
-        print("No significant findings detected")
-    print("=====================================")
+    # Save the output image
+    cv2.imwrite(result_path, original_image)
+    
+    # Create data URI for the result image
+    with open(result_path, "rb") as img_file:
+        img_data = base64.b64encode(img_file.read()).decode('utf-8')
+    
+    return summary, result_filename, img_data, None
+
+@app.route('/api/predict', methods=['POST'])
+def predict():
+    """API endpoint for mammogram predictions"""
+    logger.info("Received prediction request")
+    
+    # Check if file was uploaded
+    if 'file' not in request.files:
+        logger.error("No file in request")
+        return jsonify({
+            'error': 'No file uploaded'
+        }), 400
+    
+    file = request.files['file']
+    logger.info(f"File received: {file.filename}")
+    
+    # Check if the file has a valid name
+    if file.filename == '':
+        logger.error("Empty filename")
+        return jsonify({
+            'error': 'No file selected'
+        }), 400
+    
+    # Check file extension
+    allowed_extensions = {'jpg', 'jpeg', 'png'}
+    file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    
+    if file_ext not in allowed_extensions:
+        logger.error(f"Invalid file extension: {file_ext}")
+        return jsonify({
+            'error': f'Invalid file type. Allowed types: {", ".join(allowed_extensions)}'
+        }), 400
+    
+    # Generate unique filename
+    filename = f"{str(uuid.uuid4())}.{file_ext}"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    logger.debug(f"Saving file to: {filepath}")
+    
+    # Save the file
+    file.save(filepath)
+    
+    # Get threshold parameter (optional)
+    threshold = float(request.form.get('threshold', 0.3))
+    logger.debug(f"Using threshold: {threshold}")
+    
+    # Process the image
+    logger.info("Processing image...")
+    summary, result_filename, img_data, error = process_image(filepath, threshold)
+    
+    if error:
+        logger.error(f"Image processing error: {error}")
+        return jsonify({
+            'error': f'Failed to process image: {error}'
+        }), 500
+    
+    # Clean up the uploaded file
+    try:
+        os.remove(filepath)
+        logger.debug(f"Removed temporary file: {filepath}")
+    except Exception as e:
+        logger.warning(f"Failed to remove temp file: {e}")
+    
+    # Create response
+    response = {
+        'summary': summary,
+        'result_image': result_filename,
+        'image_data': f"data:image/jpeg;base64,{img_data}"
+    }
+    
+    logger.info(f"Prediction complete. Found {summary['total']} masses.")
+    return jsonify(response), 200
+
+@app.route('/api/results/<filename>', methods=['GET'])
+def get_result(filename):
+    """API endpoint to get result image"""
+    return send_from_directory(RESULT_FOLDER, filename)
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    logger.info("Health check requested")
+    return jsonify({'status': 'ok'}), 200
+
+# Add a route for the root path
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint for testing"""
+    logger.info("Root endpoint accessed")
+    return jsonify({
+        'status': 'ok',
+        'message': 'RetinaNet Mammography API is running',
+        'endpoints': [
+            '/api/health',
+            '/api/predict',
+            '/api/results/<filename>'
+        ]
+    }), 200
 
 if __name__ == '__main__':
-    main()
+    # Initialize model on startup
+    logger.info("Starting server and initializing model...")
+    try:
+        retinanet = load_model()
+        logger.info("Model loaded successfully")
+    except Exception as e:
+        logger.error(f"Warning: Failed to preload model: {e}")
+        logger.info("Will attempt to load model on first request")
+    
+    # Log important paths
+    logger.info(f"Upload folder: {UPLOAD_FOLDER}")
+    logger.info(f"Results folder: {RESULT_FOLDER}")
+    logger.info(f"Model path: {MODEL_PATH}")
+    
+    # Start Flask app
+    logger.info("Starting Flask server on port 5001")
+    app.run(host='0.0.0.0', port=5001, debug=True)

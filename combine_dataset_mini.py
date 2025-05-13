@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-combine_dataset.py - Combines DDSM mass and calcification datasets into a unified dataset.
+combine_dataset_mini.py - Creates a mini combined dataset with 50 images from each source.
 """
 
 import os
 import shutil
 import argparse
+import random
 from tqdm import tqdm
 
 # Define source and destination directories
@@ -15,7 +16,8 @@ SOURCE_DIRS = [
     'ddsm_retinanet_data_calc_train',
     'ddsm_retinanet_data_calc_test'
 ]
-DEST_DIR = 'ddsm_train'
+DEST_DIR = 'ddsm_train_mini'
+SAMPLE_SIZE = 50  # Number of samples to take from each source
 
 # New class mapping
 NEW_CLASS_MAP = {
@@ -26,8 +28,9 @@ NEW_CLASS_MAP = {
 }
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Combine DDSM datasets')
+    parser = argparse.ArgumentParser(description='Create mini combined DDSM dataset')
     parser.add_argument('--output', default=DEST_DIR, help='Output directory')
+    parser.add_argument('--samples', type=int, default=SAMPLE_SIZE, help='Number of samples per source')
     return parser.parse_args()
 
 def ensure_dir(directory):
@@ -72,8 +75,8 @@ def find_image_file(img_path, source_dir):
     
     return None
 
-def copy_and_convert_annotations(source_dirs, dest_dir):
-    """Copy images and convert annotations."""
+def create_mini_dataset(source_dirs, dest_dir, samples_per_source):
+    """Create a mini dataset with a specified number of samples from each source."""
     ensure_dir(dest_dir)
     images_dir = os.path.join(dest_dir, 'images')
     ensure_dir(images_dir)
@@ -81,9 +84,10 @@ def copy_and_convert_annotations(source_dirs, dest_dir):
     # Prepare new annotations file
     new_annotations_file = os.path.join(dest_dir, 'annotations.csv')
     new_annotations = []
-    processed_count = 0
     
     # Process each source directory
+    total_processed = 0
+    
     for source_dir in source_dirs:
         if not os.path.exists(source_dir):
             print(f"Warning: Source directory {source_dir} not found, skipping.")
@@ -95,50 +99,56 @@ def copy_and_convert_annotations(source_dirs, dest_dir):
                 
         # Read annotations
         annotations_path = os.path.join(source_dir, 'annotations.csv')
+        valid_annotations = []
+        
         try:
             with open(annotations_path, 'r') as f:
-                annotations = f.readlines()
+                for line in f:
+                    if not line.strip():
+                        continue
+                        
+                    parts = line.strip().split(',')
+                    if len(parts) == 6:  # path,x1,y1,x2,y2,class_name
+                        img_path = parts[0]
+                        src_img_path = find_image_file(img_path, source_dir)
+                        
+                        if src_img_path:
+                            valid_annotations.append((parts, src_img_path))
+            
+            # Randomly sample from valid annotations
+            sample_count = min(samples_per_source, len(valid_annotations))
+            selected_annotations = random.sample(valid_annotations, sample_count)
+            
+            print(f"Selected {sample_count} samples from {len(valid_annotations)} valid annotations")
+            
+            # Process the selected annotations
+            for (parts, src_img_path) in tqdm(selected_annotations, desc=f"Processing samples from {source_dir}"):
+                img_path, x1, y1, x2, y2, class_name = parts
                 
-            for line in tqdm(annotations, desc=f"Processing {source_dir}"):
-                if not line.strip():
-                    continue
-                    
-                parts = line.strip().split(',')
-                if len(parts) == 6:  # path,x1,y1,x2,y2,class_name
-                    img_path = parts[0]
-                    x1, y1, x2, y2 = parts[1:5]
-                    class_name = parts[5]  # String like 'benign' or 'malignant'
-                    
-                    # Create new class name with type and pathology
-                    new_class_name = f"{class_name} {data_type}"
-                    
-                    # Find the actual image file
-                    src_img_path = find_image_file(img_path, source_dir)
-                    
-                    if src_img_path:
-                        # Create unique name to avoid overwriting
-                        base_name = os.path.basename(src_img_path)
-                        unique_name = f"{data_type}_{base_name}"
-                        dest_img_path = os.path.join(images_dir, unique_name)
-                        
-                        # Copy the image file
-                        shutil.copy2(src_img_path, dest_img_path)
-                        processed_count += 1
-                        
-                        # Add to new annotations with updated path and class
-                        new_img_path = os.path.join('images', unique_name)
-                        new_class_id = NEW_CLASS_MAP.get(new_class_name, -1)
-                        
-                        if new_class_id != -1:
-                            new_annotation = f"{new_img_path},{x1},{y1},{x2},{y2},{new_class_id}"
-                            new_annotations.append(new_annotation)
-                        else:
-                            print(f"Warning: Unknown class: {new_class_name}")
-                    else:
-                        print(f"Warning: Image not found: {img_path} in {source_dir}")
+                # Create new class name with type and pathology
+                new_class_name = f"{class_name} {data_type}"
+                
+                # Create unique name to avoid overwriting
+                base_name = os.path.basename(src_img_path)
+                unique_name = f"{data_type}_{base_name}"
+                dest_img_path = os.path.join(images_dir, unique_name)
+                
+                # Copy the image file
+                shutil.copy2(src_img_path, dest_img_path)
+                total_processed += 1
+                
+                # Add to new annotations with updated path and class
+                new_img_path = os.path.join('images', unique_name)
+                new_class_id = NEW_CLASS_MAP.get(new_class_name, -1)
+                
+                if new_class_id != -1:
+                    new_annotation = f"{new_img_path},{x1},{y1},{x2},{y2},{new_class_id}"
+                    new_annotations.append(new_annotation)
+                else:
+                    print(f"Warning: Unknown class: {new_class_name}")
                         
         except Exception as e:
-            print(f"Error reading annotations from {annotations_path}: {e}")
+            print(f"Error processing {annotations_path}: {e}")
             continue
     
     # Write new annotations file
@@ -146,7 +156,7 @@ def copy_and_convert_annotations(source_dirs, dest_dir):
         for annotation in new_annotations:
             f.write(annotation + '\n')
     
-    print(f"Processed {processed_count} images")
+    print(f"Total images processed: {total_processed}")
     print(f"Created {len(new_annotations)} combined annotations in {new_annotations_file}")
     
     # Write new class map
@@ -160,14 +170,17 @@ def copy_and_convert_annotations(source_dirs, dest_dir):
 def main():
     args = parse_args()
     dest_dir = args.output
+    samples = args.samples
     
-    print(f"Combining datasets from {SOURCE_DIRS} into {dest_dir}")
+    print(f"Creating mini dataset with {samples} samples per source")
+    print(f"Source directories: {SOURCE_DIRS}")
+    print(f"Destination: {dest_dir}")
     
-    # Process all source directories
-    copy_and_convert_annotations(SOURCE_DIRS, dest_dir)
+    # Create mini dataset
+    create_mini_dataset(SOURCE_DIRS, dest_dir, samples)
     
-    print(f"Dataset combination complete. Combined dataset is in {dest_dir}")
-    print(f"New class mapping:")
+    print(f"Mini dataset creation complete. Dataset is in {dest_dir}")
+    print(f"Class mapping:")
     for class_name, class_id in sorted(NEW_CLASS_MAP.items(), key=lambda x: x[1]):
         print(f"  {class_id}: {class_name}")
 

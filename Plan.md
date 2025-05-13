@@ -1,2 +1,3 @@
-* Write an inference script to use the model checkpoint coco_resnet_50_map_0_335_state_dict.pt to predict bounding boxes for the image test.jpeg
-* understand the current project on how to use inference
+* In server folder, create a flask app to serve inference of DDSM model using inference_ddsm2.py as template on how to use the model
+* In client folder, create a svelte.js app which will let user to upload a jpg/png mammo image for model inference
+* In svelte.js app, it should have two pages, the first page shows the upload page and tell user the workflow, the second page shows the inference results with bounding boxes and label names, confidence scores, and have a summary of finding on the side. 
