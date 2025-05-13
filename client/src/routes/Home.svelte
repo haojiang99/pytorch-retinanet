@@ -90,16 +90,16 @@
 </script>
 
 <div class="card">
-  <h2 class="text-center">Mammography Image Analysis</h2>
+  <h2 class="text-center">Mammogram Image Analysis</h2>
   
   <div class="mb-4">
-    <p>Welcome to the Mammography Analysis Tool. This application uses a RetinaNet deep learning model to detect and classify masses in mammogram images.</p>
+    <p>Welcome to Neuralrad Mammo AI. This advanced tool uses multiple AI models to detect, classify, and interpret masses in mammogram images.</p>
     
     <h3>How it works:</h3>
     <ol>
       <li>Upload a mammogram image (JPEG or PNG format)</li>
-      <li>The AI model will process the image and detect any masses</li>
-      <li>View the results with annotations and diagnosis information</li>
+      <li>The AI models will process the image and detect suspicious areas</li>
+      <li>View the results with annotations and detailed interpretations</li>
     </ol>
   </div>
   
@@ -142,11 +142,11 @@
     <div class="p-3 mb-3" style="background-color: #f3e5f5; border-radius: 4px;">
       <label style="display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
         <input type="checkbox" bind:checked={useGemini} style="width: 16px; height: 16px;">
-        <span>Use Gemini AI for advanced mammogram interpretation</span>
+        <span>Use Neuralrad AI for advanced mammogram interpretation</span>
       </label>
       {#if useGemini}
         <div class="mt-2" style="font-size: 0.9em; color: #6a1b9a;">
-          Gemini AI will provide detailed radiologist-like analysis of suspicious masses and calcifications
+          Neuralrad AI will provide detailed radiologist-like analysis and check for additional suspicious areas
         </div>
       {/if}
     </div>

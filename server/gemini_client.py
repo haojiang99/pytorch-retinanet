@@ -70,16 +70,16 @@ class GeminiClient:
             raise ValueError("Unsupported image format")
     
     def construct_prompt(self, prediction_results):
-        """Construct prompt for Gemini based on RetinaNet prediction results"""
+        """Construct prompt for Gemini based on prediction results"""
         prompt = """
-You are an AI radiologist assistant specialized in mammogram analysis. 
+You are an AI radiologist assistant for Neuralrad Mammo AI. 
 Please analyze this single-view mammogram image and provide a detailed reading.
 
-RetinaNet prediction results:
+Detection results:
 """
         
         if not prediction_results:
-            prompt += "No masses detected by RetinaNet.\n"
+            prompt += "No masses detected by the first-stage detector.\n"
         else:
             prompt += f"Total findings: {prediction_results.get('total', 0)}\n"
             prompt += f"Benign masses: {prediction_results.get('benign', 0)}\n"
@@ -102,11 +102,11 @@ Please provide your analysis in the following markdown format:
 
 ## Mammogram Analysis
 
-### RetinaNet Findings Assessment
-* [Brief interpretation of the detected masses from RetinaNet]
+### Primary Detection Findings
+* [Brief interpretation of the detected masses from the first-stage detector]
 
 ### Additional Suspicious Areas
-* [Describe any additional suspicious areas not detected by RetinaNet, if any]
+* [Describe any additional suspicious areas not detected by the first-stage detector, if any]
 * [Include location descriptions and characteristics]
 
 ### Impression
@@ -116,7 +116,7 @@ Please provide your analysis in the following markdown format:
 ### Recommendations
 * [Suggest appropriate next steps or follow-up]
 
-Focus on being accurate, clear, and concise. Do NOT assign a BI-RADS category as this is a single-view image. Highlight any potential area of concern that might have been missed by the AI detection system.
+Focus on being accurate, clear, and concise. Do NOT assign a BI-RADS category as this is a single-view image. Highlight any potential area of concern that might have been missed by the initial detection system.
 """
         return prompt
     

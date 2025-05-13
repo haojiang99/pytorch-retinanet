@@ -1,5 +1,5 @@
 {
-  "name": "retinanet-mammography-client",
+  "name": "neuralrad-mammo-ai-client",
   "version": "1.0.0",
   "type": "module",
   "scripts": {

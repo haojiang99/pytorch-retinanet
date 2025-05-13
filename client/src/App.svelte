@@ -7,7 +7,7 @@
 <Router>
   <div class="container">
     <header class="text-center mb-4">
-      <h1>Mammography Analysis with RetinaNet</h1>
+      <h1>Neuralrad Mammo AI</h1>
     </header>
     
     <main>

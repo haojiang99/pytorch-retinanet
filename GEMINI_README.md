@@ -1,13 +1,13 @@
-# Mammogram Analysis with Gemini AI
+# Neuralrad Mammo AI
 
-This extension adds [Google Gemini 2.0 Flash](https://ai.google.dev/gemini) integration to the mammogram analysis system, providing advanced interpretations of mammogram images.
+This extension adds advanced interpretation capabilities to the mammogram analysis system, providing detailed AI-powered interpretations of mammogram images.
 
 ## Features
 
 - Mammogram analysis with RetinaNet deep learning model
-- Enhanced interpretation with Google Gemini 2.0 Flash
-- Resizing of images to max side < 1200 for Gemini compatibility
-- Detailed radiologist-like analysis of suspicious masses or calcifications
+- Enhanced interpretation with Google Gemini 2.0 Flash AI
+- Resizing of images to max side < 1200 for better processing
+- Detailed radiologist-like analysis of suspicious masses and calcifications
 
 ## Setup
 

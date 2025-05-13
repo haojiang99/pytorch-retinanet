@@ -425,7 +425,7 @@ def index():
     logger.info("Root endpoint accessed")
     return jsonify({
         'status': 'ok',
-        'message': 'RetinaNet Mammography API is running',
+        'message': 'Neuralrad Mammo AI is running',
         'endpoints': [
             '/api/health',
             '/api/predict',
