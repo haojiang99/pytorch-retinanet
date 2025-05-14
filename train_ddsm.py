@@ -1,6 +1,7 @@
 import argparse
 import collections
 import os
+import csv
 
 import numpy as np
 
@@ -18,10 +19,58 @@ print(f'PyTorch version: {torch.__version__}')
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 
+def fix_image_paths(csv_file, dataset_path):
+    """Verify and fix image paths in annotations file"""
+    print("Verifying image paths in annotations file...")
+    
+    # Read the CSV file
+    rows = []
+    with open(csv_file, 'r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            rows.append(row)
+    
+    # Check and fix paths
+    fixed_count = 0
+    for i, row in enumerate(rows):
+        if len(row) >= 6:  # path,x1,y1,x2,y2,class_name
+            img_path = row[0]
+            
+            # Standardize path format - always use forward slashes for CSV
+            img_path = img_path.replace('\\', '/')
+            
+            # Check absolute path first
+            full_path = os.path.join(dataset_path, img_path)
+            if not os.path.exists(full_path.replace('/', os.path.sep)):
+                # Try just the filename in images directory
+                filename = os.path.basename(img_path)
+                alt_path = os.path.join(dataset_path, 'images', filename)
+                
+                if os.path.exists(alt_path):
+                    # Update to correct path format
+                    rows[i][0] = 'images/' + filename
+                    fixed_count += 1
+                    print(f"Fixed path: {img_path} -> images/{filename}")
+                else:
+                    print(f"Warning: Could not find image for {img_path}")
+            else:
+                # Path exists but might need standardization
+                rows[i][0] = img_path
+    
+    if fixed_count > 0 or True:  # Always write back to ensure consistent formatting
+        # Write back the fixed CSV
+        with open(csv_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+        print(f"Fixed {fixed_count} image paths in {csv_file}")
+    else:
+        print("All image paths appear to be correct")
+
+
 def main(args=None):
     parser = argparse.ArgumentParser(description='Training script for RetinaNet on DDSM dataset.')
 
-    parser.add_argument('--dataset_path', help='Path to dataset directory', default='ddsm_train_mini')
+    parser.add_argument('--dataset_path', help='Path to dataset directory', default='ddsm_train2')
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
     parser.add_argument('--batch_size', help='Batch size', type=int, default=2)
@@ -49,6 +98,9 @@ def main(args=None):
     print(f"Training on DDSM dataset from {parser.dataset_path}")
     print(f"Annotations: {csv_train}")
     print(f"Class map: {csv_classes}")
+    
+    # Verify and fix image paths in annotations if needed
+    fix_image_paths(csv_train, parser.dataset_path)
 
     # Create the data loaders
     dataset_train = CSVDataset(train_file=csv_train, class_list=csv_classes,

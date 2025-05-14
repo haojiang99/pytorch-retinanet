@@ -10,12 +10,12 @@ from tqdm import tqdm
 
 # Define source and destination directories
 SOURCE_DIRS = [
-    'ddsm_retinanet_data_mass_train',
-    'ddsm_retinanet_data_mass_test',
-    'ddsm_retinanet_data_calc_train',
-    'ddsm_retinanet_data_calc_test'
+    # 'ddsm_retinanet_data_mass_train',
+    'ddsm_retinanet_data_mass_test2',
+    # 'ddsm_retinanet_data_calc_train',
+    'ddsm_retinanet_data_calc_test2'
 ]
-DEST_DIR = 'ddsm_train'
+DEST_DIR = 'ddsm_train2'
 
 # New class mapping
 NEW_CLASS_MAP = {
@@ -110,7 +110,11 @@ def copy_and_convert_annotations(source_dirs, dest_dir):
                     class_name = parts[5]  # String like 'benign' or 'malignant'
                     
                     # Create new class name with type and pathology
-                    new_class_name = f"{class_name} {data_type}"
+                    # Check if class_name already includes the data_type to avoid duplication
+                    if data_type in class_name:
+                        new_class_name = class_name
+                    else:
+                        new_class_name = f"{class_name} {data_type}"
                     
                     # Find the actual image file
                     src_img_path = find_image_file(img_path, source_dir)
@@ -126,14 +130,12 @@ def copy_and_convert_annotations(source_dirs, dest_dir):
                         processed_count += 1
                         
                         # Add to new annotations with updated path and class
-                        new_img_path = os.path.join('images', unique_name)
-                        new_class_id = NEW_CLASS_MAP.get(new_class_name, -1)
+                        # Use absolute path instead of relative path
+                        abs_img_path = os.path.abspath(dest_img_path).replace('\\', '/')
                         
-                        if new_class_id != -1:
-                            new_annotation = f"{new_img_path},{x1},{y1},{x2},{y2},{new_class_id}"
-                            new_annotations.append(new_annotation)
-                        else:
-                            print(f"Warning: Unknown class: {new_class_name}")
+                        # Use the class name, not the ID for the annotation
+                        new_annotation = f"{abs_img_path},{x1},{y1},{x2},{y2},{new_class_name}"
+                        new_annotations.append(new_annotation)
                     else:
                         print(f"Warning: Image not found: {img_path} in {source_dir}")
                         

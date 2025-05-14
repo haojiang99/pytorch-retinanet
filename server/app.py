@@ -56,7 +56,7 @@ DDSM_CLASSES = {
 }
 
 # Load model
-MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ddsm_checkpoints', 'ddsm_retinanet_89.pt')
+MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ddsm_checkpoints', 'ddsm_retinanet_final.pt')
 print(MODEL_PATH)
 retinanet = None
 

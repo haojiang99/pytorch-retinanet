@@ -15,11 +15,11 @@ from tqdm import tqdm
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Visualize prepared DDSM data')
-    parser.add_argument('--annotations', default='ddsm_retinanet_data_mass_train2/annotations.csv',
+    parser.add_argument('--annotations', default='ddsm_retinanet_data_calc_test2/annotations.csv',
                         help='Path to the annotations CSV file')
-    parser.add_argument('--class_map', default='ddsm_retinanet_data_mass_train2/class_map.csv',
+    parser.add_argument('--class_map', default='ddsm_retinanet_data_calc_test2/class_map.csv',
                         help='Path to the class_map CSV file')
-    parser.add_argument('--output_dir', default='ddsm_retinanet_data_mass_train2_visual',
+    parser.add_argument('--output_dir', default='ddsm_retinanet_data_calc_test2_visual',
                         help='Output directory for visualization images')
     parser.add_argument('--limit', type=int, default=None,
                         help='Limit visualization to N samples')
@@ -153,8 +153,8 @@ def main():
         output_path = os.path.join(output_dir, base_name)
         
         # Check if the base directory exists based on where the script is run
-        if not os.path.exists(img_path) and os.path.exists(os.path.join('ddsm_retinanet_data_mass_test', img_path)):
-            img_path = os.path.join('ddsm_retinanet_data_mass_test', img_path)
+        if not os.path.exists(img_path) and os.path.exists(os.path.join('ddsm_retinanet_data_mass_test2', img_path)):
+            img_path = os.path.join('ddsm_retinanet_data_mass_test2', img_path)
         
         # Visualize
         if visualize_annotation(img_path, x1, y1, x2, y2, class_name, output_path):
