@@ -39,9 +39,9 @@ def fix_paths(input_csv, output_csv, images_dir):
 
 def main():
     parser = argparse.ArgumentParser(description='Fix image paths in annotations.csv')
-    parser.add_argument('--input', default='ddsm_train2/annotations.csv', help='Input annotations.csv file')
-    parser.add_argument('--output', default='ddsm_train2/annotations_fixed.csv', help='Output annotations.csv file')
-    parser.add_argument('--images_dir', default='ddsm_train2/images', help='Images directory')
+    parser.add_argument('--input', default='ddsm_train3/annotations.csv', help='Input annotations.csv file')
+    parser.add_argument('--output', default='ddsm_train3/annotations_fixed.csv', help='Output annotations.csv file')
+    parser.add_argument('--images_dir', default='ddsm_train3/images', help='Images directory')
     
     args = parser.parse_args()
     

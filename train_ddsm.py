@@ -70,7 +70,7 @@ def fix_image_paths(csv_file, dataset_path):
 def main(args=None):
     parser = argparse.ArgumentParser(description='Training script for RetinaNet on DDSM dataset.')
 
-    parser.add_argument('--dataset_path', help='Path to dataset directory', default='ddsm_train2')
+    parser.add_argument('--dataset_path', help='Path to dataset directory', default='ddsm_train3')
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
     parser.add_argument('--batch_size', help='Batch size', type=int, default=2)

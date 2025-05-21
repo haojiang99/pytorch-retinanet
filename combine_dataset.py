@@ -10,12 +10,12 @@ from tqdm import tqdm
 
 # Define source and destination directories
 SOURCE_DIRS = [
-    # 'ddsm_retinanet_data_mass_train',
+    'ddsm_retinanet_data_mass_train2',
     'ddsm_retinanet_data_mass_test2',
-    # 'ddsm_retinanet_data_calc_train',
+    'ddsm_retinanet_data_calc_train2',
     'ddsm_retinanet_data_calc_test2'
 ]
-DEST_DIR = 'ddsm_train2'
+DEST_DIR = 'ddsm_train3'
 
 # New class mapping
 NEW_CLASS_MAP = {
