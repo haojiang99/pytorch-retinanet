@@ -10,8 +10,11 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torchvision import transforms
+from torch import serialization
+from torch.nn.parallel import DataParallel
 
 from retinanet import model
+from retinanet.model import ResNet, Bottleneck, BasicBlock
 from retinanet.dataloader import CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, Normalizer
 from torch.utils.data import DataLoader
 
@@ -80,6 +83,7 @@ def main(args=None):
     parser.add_argument('--lr', help='Learning rate', type=float, default=1e-5)
     parser.add_argument('--checkpoint_dir', help='Directory to save checkpoints', default='ddsm_checkpoints')
     parser.add_argument('--start_epoch', help='Starting epoch number (for naming)', type=int, default=100)
+    parser.add_argument('--weights_only', help='Force loading with weights_only set to True', action='store_true')
 
     parser = parser.parse_args(args)
 
@@ -121,9 +125,18 @@ def main(args=None):
 
     # Load the model from checkpoint
     print(f"Loading model from checkpoint: {parser.checkpoint}")
+    
     try:
-        # Try with torch.load first for full model
-        retinanet = torch.load(parser.checkpoint)
+        # Add safe globals for PyTorch 2.6+
+        serialization.add_safe_globals([ResNet, Bottleneck, BasicBlock, DataParallel])
+        
+        # Try loading the model based on user preference for weights_only
+        if parser.weights_only:
+            print("Attempting to load model with weights_only=True as specified...")
+            retinanet = torch.load(parser.checkpoint, map_location='cpu', weights_only=True)
+        else:
+            print("Attempting to load model with weights_only=False...")
+            retinanet = torch.load(parser.checkpoint, map_location='cpu', weights_only=False)
         print("Loaded full model from checkpoint")
         
         # If it's wrapped in DataParallel, get the module
@@ -132,9 +145,64 @@ def main(args=None):
             retinanet = retinanet.module
             
     except Exception as e:
-        print(f"Error loading checkpoint: {e}")
-        print("Please ensure the checkpoint was saved with the entire model, not just state_dict")
-        sys.exit(1)
+        print(f"First loading attempt failed: {e}")
+        
+        try:
+            # Try creating a new model and loading state dict
+            print("Trying to create new model and load state dict...")
+            
+            # First, check how many classes by reading the class_list file
+            class_count = 0
+            with open(csv_classes, 'r') as f:
+                reader = csv.reader(f)
+                for _ in reader:
+                    class_count += 1
+            
+            print(f"Creating new model with {class_count} classes based on class list")
+            
+            # Create a new model with the correct number of classes
+            if parser.depth == 18:
+                retinanet = model.resnet18(num_classes=class_count, pretrained=False)
+            elif parser.depth == 34:
+                retinanet = model.resnet34(num_classes=class_count, pretrained=False)
+            elif parser.depth == 50:
+                retinanet = model.resnet50(num_classes=class_count, pretrained=False)
+            elif parser.depth == 101:
+                retinanet = model.resnet101(num_classes=class_count, pretrained=False)
+            elif parser.depth == 152:
+                retinanet = model.resnet152(num_classes=class_count, pretrained=False)
+            else:
+                # Default to resnet50
+                print(f"Using default ResNet-50 backbone")
+                retinanet = model.resnet50(num_classes=class_count, pretrained=False)
+            
+            # Load state dict
+            # Decide whether to load with weights_only based on user preference
+            if parser.weights_only:
+                print("Loading checkpoint with weights_only=True as specified...")
+                state_dict = torch.load(parser.checkpoint, map_location='cpu', weights_only=True)
+            else:
+                try:
+                    # Try first without weights_only
+                    print("Loading checkpoint with weights_only=False...")
+                    state_dict = torch.load(parser.checkpoint, map_location='cpu', weights_only=False)
+                except Exception as e3:
+                    print(f"Failed with weights_only=False, trying with weights_only=True: {e3}")
+                    state_dict = torch.load(parser.checkpoint, map_location='cpu', weights_only=True)
+            
+            # If the loaded object is a full model, extract its state dict
+            if isinstance(state_dict, torch.nn.Module):
+                print("Loaded a full model, extracting state dict...")
+                state_dict = state_dict.state_dict()
+                
+            # Load state dict into model
+            retinanet.load_state_dict(state_dict)
+            print("Successfully loaded state dict into new model")
+            
+        except Exception as e2:
+            print(f"Error loading checkpoint: {e2}")
+            print("Failed to load the model. Please try using an older PyTorch version or update the checkpoint.")
+            sys.exit(1)
 
     # Verify model is properly loaded
     print(f"Model loaded successfully. Num classes: {dataset_train.num_classes()}")

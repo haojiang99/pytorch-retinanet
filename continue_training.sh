@@ -14,6 +14,7 @@ BATCH_SIZE=2
 LEARNING_RATE=5e-6
 NUM_WORKERS=4
 START_EPOCH=100
+WEIGHTS_ONLY=false
 
 # Display help message
 show_help() {
@@ -29,6 +30,7 @@ show_help() {
     echo "  -l, --lr NUMBER          Learning rate (default: ${LEARNING_RATE})"
     echo "  -w, --workers NUMBER     Number of data loader workers (default: ${NUM_WORKERS})"
     echo "  -s, --start-epoch NUMBER Starting epoch number (default: ${START_EPOCH})"
+    echo "  --weights-only           Force loading checkpoint with weights_only=True (for PyTorch 2.6+)"
     echo "  -h, --help               Show this help message and exit"
     echo ""
     echo "Example:"
@@ -67,6 +69,10 @@ while [[ $# -gt 0 ]]; do
         -s|--start-epoch)
             START_EPOCH="$2"
             shift 2
+            ;;
+        --weights-only)
+            WEIGHTS_ONLY=true
+            shift
             ;;
         -h|--help)
             show_help
@@ -116,6 +122,7 @@ echo "Batch size:       $BATCH_SIZE"
 echo "Learning rate:    $LEARNING_RATE"
 echo "Workers:          $NUM_WORKERS"
 echo "Checkpoint dir:   $CHECKPOINT_DIR"
+echo "Weights only:     $WEIGHTS_ONLY"
 echo "=========================================================="
 echo "Starting training in 3 seconds... Press Ctrl+C to cancel"
 echo "=========================================================="
@@ -124,15 +131,28 @@ echo "=========================================================="
 sleep 3
 
 # Start the Python script with the specified parameters
-python continue_training_ddsm.py \
-    --checkpoint "$CHECKPOINT" \
-    --dataset_path "$DATASET_PATH" \
-    --epochs "$ADDITIONAL_EPOCHS" \
-    --batch_size "$BATCH_SIZE" \
-    --lr "$LEARNING_RATE" \
-    --workers "$NUM_WORKERS" \
-    --start_epoch "$START_EPOCH" \
-    --checkpoint_dir "$CHECKPOINT_DIR"
+if [ "$WEIGHTS_ONLY" = true ]; then
+    python continue_training_ddsm.py \
+        --checkpoint "$CHECKPOINT" \
+        --dataset_path "$DATASET_PATH" \
+        --epochs "$ADDITIONAL_EPOCHS" \
+        --batch_size "$BATCH_SIZE" \
+        --lr "$LEARNING_RATE" \
+        --workers "$NUM_WORKERS" \
+        --start_epoch "$START_EPOCH" \
+        --checkpoint_dir "$CHECKPOINT_DIR" \
+        --weights_only
+else
+    python continue_training_ddsm.py \
+        --checkpoint "$CHECKPOINT" \
+        --dataset_path "$DATASET_PATH" \
+        --epochs "$ADDITIONAL_EPOCHS" \
+        --batch_size "$BATCH_SIZE" \
+        --lr "$LEARNING_RATE" \
+        --workers "$NUM_WORKERS" \
+        --start_epoch "$START_EPOCH" \
+        --checkpoint_dir "$CHECKPOINT_DIR"
+fi
 
 # Check exit status
 if [ $? -eq 0 ]; then
