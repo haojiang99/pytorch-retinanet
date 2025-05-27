@@ -12,7 +12,7 @@
   let filePreview = null;
   
   // Server API URL
-  const API_URL = 'http://localhost:5001/api';
+  const API_URL = 'http://mammo.neuralrad.com:5300/api';
   
   // Handle file drop
   function handleDrop(event) {

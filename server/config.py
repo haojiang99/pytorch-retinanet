@@ -20,7 +20,7 @@ if not GEMINI_API_KEY:
 
 # Server configuration
 SERVER_HOST = os.environ.get('SERVER_HOST', '0.0.0.0')
-SERVER_PORT = int(os.environ.get('SERVER_PORT', 5001))
+SERVER_PORT = int(os.environ.get('SERVER_PORT', 5300))
 DEBUG_MODE = os.environ.get('DEBUG_MODE', 'True').lower() == 'true'
 
 # Default model configuration
