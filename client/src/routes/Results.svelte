@@ -438,21 +438,21 @@
       
       <!-- Right column: Analysis summary -->
       <div class="column right-column">
-        <h3>Analysis Summary</h3>
+        <h3>Imaging Assessment</h3>
         
         {#if result.summary.total === 0}
           <div class="p-4" style="background-color: #e8f5e9; border-radius: 4px;">
-            <p><strong>No significant findings detected.</strong></p>
-            <p>The AI model did not detect any masses in this mammogram.</p>
+            <p><strong>IMPRESSION: No significant abnormalities detected.</strong></p>
+            <p>No suspicious masses or calcifications identified in the current analysis.</p>
           </div>
         {:else}
           <div class="p-4 mb-4" style="background-color: #f5f5f5; border-radius: 4px;">
-            <h4>Detection Summary</h4>
+            <h4>Findings Summary</h4>
             <p>
-              <strong>Total findings detected:</strong> {result.summary.total}
+              <strong>Total findings identified:</strong> {result.summary.total}
             </p>
             <p>
-              <strong>Classification breakdown:</strong>
+              <strong>Morphological assessment:</strong>
             </p>
             <ul>
               <li><span class="benign">Benign masses:</span> {result.summary.mass_benign || 0}</li>
@@ -464,45 +464,48 @@
           
           {#if result.summary.highest_confidence}
             <div class="p-4 mb-4" style="background-color: #e3f2fd; border-radius: 4px;">
-              <h4>Highest Confidence Detection</h4>
+              <h4>Primary Finding</h4>
               <p>
-                <strong>Classification:</strong> 
+                <strong>Morphology:</strong> 
                 <span class={result.summary.highest_confidence.class}>
                   {result.summary.highest_confidence.class}
                 </span>
               </p>
               <p>
-                <strong>Confidence:</strong> {formatScore(result.summary.highest_confidence.score)}
+                <strong>Assessment confidence:</strong> {formatScore(result.summary.highest_confidence.score)}
               </p>
             </div>
           {/if}
           
           {#if result.summary.largest_mass && result.summary.largest_mass !== result.summary.highest_confidence}
             <div class="p-4 mb-4" style="background-color: #fff3e0; border-radius: 4px;">
-              <h4>Largest Mass</h4>
+              <h4>Additional Finding</h4>
               <p>
-                <strong>Classification:</strong> 
+                <strong>Morphology:</strong> 
                 <span class={result.summary.largest_mass.class}>
                   {result.summary.largest_mass.class}
                 </span>
               </p>
               <p>
-                <strong>Confidence:</strong> {formatScore(result.summary.largest_mass.score)}
+                <strong>Assessment confidence:</strong> {formatScore(result.summary.largest_mass.score)}
               </p>
             </div>
           {/if}
           
           {#if result.summary.findings && result.summary.findings.length > 0}
             <div class="p-4" style="background-color: #f5f5f5; border-radius: 4px;">
-              <h4>All Findings</h4>
+              <h4>Detailed Findings</h4>
               {#each result.summary.findings as finding, i}
                 <div class="mb-4" style="border-bottom: 1px solid #ddd; padding-bottom: 0.5rem;">
                   <p>
                     <strong>Finding {i+1}:</strong> 
                     <span class={finding.class}>{finding.class}</span>
+                    {#if finding.size_description}
+                      <em>({finding.size_description} size)</em>
+                    {/if}
                   </p>
                   <p>
-                    <strong>Confidence:</strong> {formatScore(finding.score)}
+                    <strong>Assessment confidence:</strong> {formatScore(finding.score)}
                   </p>
                 </div>
               {/each}

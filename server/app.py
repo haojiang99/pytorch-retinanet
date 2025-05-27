@@ -273,27 +273,46 @@ def process_image(image_path, score_threshold=0.1, use_gemini=True):
         highest_conf = results[0]
         summary['highest_confidence'] = highest_conf
         
-        # Calculate mass area for each detection
+        # Calculate relative size for each detection (for sorting purposes only)
         for result in results:
             box = result['box']
             width = box[2] - box[0]
             height = box[3] - box[1]
-            result['area'] = width * height
+            result['area'] = width * height  # Internal use only for size comparison
+            
+            # Add descriptive size category instead of pixel measurements
+            area = width * height
+            if area > 10000:
+                result['size_description'] = 'large'
+            elif area > 5000:
+                result['size_description'] = 'moderate'
+            else:
+                result['size_description'] = 'small'
+                
             summary['findings'].append(result)
         
         # Find largest mass
         largest_mass = max(results, key=lambda x: x['area'])
         summary['largest_mass'] = largest_mass
         
-        # Draw summary on the image
+        # Draw summary on the image in radiology report style
         summary_text = []
-        summary_text.append(f"Highest confidence: {highest_conf['class']} ({highest_conf['score']:.3f})")
         
+        # Primary finding
+        summary_text.append(f"Primary finding: {highest_conf['class']} (confidence: {highest_conf['score']:.1%})")
+        
+        # Additional findings if different from primary
         if largest_mass != highest_conf:
-            summary_text.append(f"Largest finding: {largest_mass['class']} ({largest_mass['score']:.3f})")
+            summary_text.append(f"Additional: {largest_mass['class']} (confidence: {largest_mass['score']:.1%})")
         
-        summary_text.append(f"Summary: {mass_benign_count} benign masses, {mass_malignant_count} malignant masses")
-        summary_text.append(f"         {calc_benign_count} benign calcifications, {calc_malignant_count} malignant calcifications")
+        # Summary counts in medical terminology
+        if mass_benign_count + mass_malignant_count > 0:
+            mass_summary = f"Masses identified: {mass_benign_count} benign, {mass_malignant_count} malignant"
+            summary_text.append(mass_summary)
+        
+        if calc_benign_count + calc_malignant_count > 0:
+            calc_summary = f"Calcifications noted: {calc_benign_count} benign, {calc_malignant_count} malignant"
+            summary_text.append(calc_summary)
         
         # Add summary text to the top of the image
         for i, text in enumerate(summary_text):
@@ -302,7 +321,7 @@ def process_image(image_path, score_threshold=0.1, use_gemini=True):
                         0.7, (255, 255, 255), 2, cv2.LINE_AA)
     else:
         # If no detections, add text indicating no findings
-        cv2.putText(original_image, "No significant findings detected", (10, 30), 
+        cv2.putText(original_image, "IMPRESSION: No significant abnormalities detected", (10, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
     
     # Generate unique filename for result
