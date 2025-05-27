@@ -185,7 +185,7 @@ def get_prediction_color(class_name):
     else:
         return (255, 0, 0)  # Blue for malignant calcification
 
-def process_image(image_path, score_threshold=0.3, use_gemini=True):
+def process_image(image_path, score_threshold=0.1, use_gemini=True):
     """Process an image and return detection results"""
     global retinanet
     
@@ -384,7 +384,7 @@ def predict():
     file.save(filepath)
     
     # Get threshold parameter (optional)
-    threshold = float(request.form.get('threshold', 0.3))
+    threshold = float(request.form.get('threshold', 0.1))
     logger.debug(f"Using threshold: {threshold}")
     
     # Get Gemini analysis parameter (optional)

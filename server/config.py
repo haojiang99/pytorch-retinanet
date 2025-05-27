@@ -24,7 +24,7 @@ SERVER_PORT = int(os.environ.get('SERVER_PORT', 5001))
 DEBUG_MODE = os.environ.get('DEBUG_MODE', 'True').lower() == 'true'
 
 # Default model configuration
-MODEL_CONFIDENCE_THRESHOLD = float(os.environ.get('MODEL_CONFIDENCE_THRESHOLD', 0.3))
+MODEL_CONFIDENCE_THRESHOLD = float(os.environ.get('MODEL_CONFIDENCE_THRESHOLD', 0.1))
 
 # Path configuration
 MODEL_PATH = os.environ.get('MODEL_PATH', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'model_final.pt'))

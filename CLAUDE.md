@@ -89,7 +89,7 @@ python inference.py --image /path/to/image.jpg --model /path/to/model.pt --score
 
 For mammogram analysis:
 ```
-python inference_ddsm.py --image /path/to/mammogram.jpg --model /path/to/ddsm_model.pt --score-threshold 0.3
+python inference_ddsm.py --image /path/to/mammogram.jpg --model /path/to/ddsm_model.pt --score-threshold 0.1
 ```
 
 ### Visualization

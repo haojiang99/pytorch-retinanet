@@ -142,7 +142,7 @@ def main():
     parser = argparse.ArgumentParser(description='RetinaNet DDSM mammogram inference script')
     parser.add_argument('--image', help='Path to input mammogram image', required=True)
     parser.add_argument('--model', help='Path to model checkpoint', default='model_final.pt')
-    parser.add_argument('--score-threshold', type=float, help='Score threshold for detections', default=0.3)
+    parser.add_argument('--score-threshold', type=float, help='Score threshold for detections', default=0.1)
     parser.add_argument('--output', help='Path to save output image', default='output_ddsm.jpg')
     
     args = parser.parse_args()
