@@ -300,6 +300,33 @@
     left: 100%;
   }
   
+  .disclaimer {
+    background-color: #fff3e0;
+    border: 2px solid #ff9800;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    color: #e65100;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  
+  .disclaimer h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #bf360c;
+    font-weight: 600;
+  }
+  
+  .disclaimer p {
+    margin-bottom: 0.5rem;
+  }
+  
+  .disclaimer strong {
+    font-weight: 600;
+    color: #bf360c;
+  }
+  
   /* Force the two column layout */
   .two-column-layout {
     display: flex;
@@ -339,7 +366,13 @@
     <div class="logo-container">
       <img src="/examples/NeuralRadLogo.png" alt="NeuralRad Logo" class="logo" />
     </div>
-    <h1>Mammography Analysis Results</h1>
+    <h1>Mammography Research Analysis Results</h1>
+  </div>
+
+  <!-- FDA Disclaimer -->
+  <div class="disclaimer">
+    <h4>⚠️ Research Results Only</h4>
+    <p><strong>These results are for research investigation purposes only.</strong> This application is NOT FDA 510(k) cleared and should not be used for clinical diagnosis or treatment decisions.</p>
   </div>
 
   <div class="card">
