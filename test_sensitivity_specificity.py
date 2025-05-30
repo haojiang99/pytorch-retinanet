@@ -27,13 +27,23 @@ from retinanet.model import ResNet, Bottleneck, BasicBlock
 from torch import serialization
 from torch.nn.parallel import DataParallel
 
-# Class mapping for DDSM dataset
+# Class mapping for DDSM dataset - this might need adjustment based on your model
 DDSM_CLASSES = {
     0: 'benign mass', 
     1: 'malignant mass',
     2: 'benign calcification',
     3: 'malignant calcification'
 }
+
+# Alternative mappings in case the model was trained differently
+ALTERNATIVE_MAPPINGS = [
+    # If model has only 2 classes (benign vs malignant)
+    {0: 'benign mass', 1: 'malignant mass'},
+    # If model uses different order
+    {0: 'malignant mass', 1: 'benign mass', 2: 'malignant calcification', 3: 'benign calcification'},
+    # Single class models
+    {0: 'mass'},
+]
 
 
 def load_model(model_path):
@@ -65,6 +75,17 @@ def load_model(model_path):
     if torch.cuda.is_available():
         retinanet = retinanet.cuda()
         print("Model moved to GPU")
+    
+    # Debug: Check model's number of classes
+    try:
+        if hasattr(retinanet, 'classificationModel'):
+            num_classes = retinanet.classificationModel.num_classes
+            print(f"Model expects {num_classes} classes")
+        elif hasattr(retinanet, 'module') and hasattr(retinanet.module, 'classificationModel'):
+            num_classes = retinanet.module.classificationModel.num_classes
+            print(f"Model expects {num_classes} classes")
+    except:
+        print("Could not determine model's expected number of classes")
     
     return retinanet
 
@@ -121,9 +142,32 @@ def preprocess_image(image_path):
     return tensor, scale
 
 
+def load_class_mapping(dataset_path):
+    """Load class mapping from class_map.csv if available"""
+    class_map_file = os.path.join(dataset_path, 'class_map.csv')
+    class_mapping = {}
+    
+    if os.path.exists(class_map_file):
+        print(f"Loading class mapping from {class_map_file}")
+        with open(class_map_file, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) >= 2:
+                    class_name = row[0].strip()
+                    class_id = int(row[1])
+                    class_mapping[class_id] = class_name
+        
+        print(f"Found class mapping: {class_mapping}")
+        return class_mapping
+    else:
+        print(f"No class_map.csv found, using default DDSM mapping")
+        return DDSM_CLASSES
+
+
 def load_annotations(annotations_file):
     """Load ground truth annotations from CSV file - focus on lesion presence only"""
     image_lesions = defaultdict(set)  # Store unique lesion types per image
+    unique_classes = set()  # Track all unique class names found
     
     with open(annotations_file, 'r') as f:
         reader = csv.reader(f)
@@ -132,6 +176,10 @@ def load_annotations(annotations_file):
                 image_path = row[0]
                 class_name = row[5].strip() if len(row) > 5 else ''
                 
+                # Track all unique class names for debugging
+                if class_name != '':
+                    unique_classes.add(class_name)
+                
                 # Skip empty annotations (negative examples)
                 if class_name == '' or row[1] == '' or row[2] == '' or row[3] == '' or row[4] == '':
                     # This is a negative example - no lesions
@@ -139,9 +187,36 @@ def load_annotations(annotations_file):
                         image_lesions[image_path] = set()
                     continue
                 
-                # Valid lesion annotation
-                if class_name in ['benign mass', 'malignant mass', 'benign calcification', 'malignant calcification']:
-                    image_lesions[image_path].add(class_name)
+                # Valid lesion annotation - normalize class name
+                class_name_lower = class_name.lower().strip()
+                
+                # Map variations to standard names
+                if 'benign' in class_name_lower and 'mass' in class_name_lower:
+                    standard_name = 'benign mass'
+                elif 'malignant' in class_name_lower and 'mass' in class_name_lower:
+                    standard_name = 'malignant mass'
+                elif 'benign' in class_name_lower and 'calc' in class_name_lower:
+                    standard_name = 'benign calcification'
+                elif 'malignant' in class_name_lower and 'calc' in class_name_lower:
+                    standard_name = 'malignant calcification'
+                else:
+                    print(f"Warning: Unknown class name '{class_name}' in annotations")
+                    continue
+                
+                image_lesions[image_path].add(standard_name)
+    
+    print(f"Found unique class names in annotations: {sorted(unique_classes)}")
+    print(f"Loaded {len(image_lesions)} images with annotations")
+    
+    # Print summary of lesion types
+    lesion_counts = defaultdict(int)
+    for image_path, lesions in image_lesions.items():
+        for lesion in lesions:
+            lesion_counts[lesion] += 1
+    
+    print("Ground truth lesion distribution:")
+    for lesion_type, count in sorted(lesion_counts.items()):
+        print(f"  {lesion_type}: {count} images")
     
     return image_lesions
 
@@ -157,13 +232,36 @@ def run_inference(model, image_tensor, score_threshold=0.1):
         try:
             scores, labels, boxes = model(image_tensor)
             
+            # Debug: print all detections above a very low threshold
+            debug_detections = []
+            for i in range(len(scores)):
+                if scores[i] > 0.01:  # Very low threshold for debugging
+                    class_id = int(labels[i].cpu().numpy())
+                    class_name = DDSM_CLASSES.get(class_id, f'unknown_class_{class_id}')
+                    score = scores[i].cpu().numpy()
+                    debug_detections.append((class_name, score, class_id))
+            
             # Filter by score threshold and collect unique lesion types
             detected_lesions = set()
+            valid_detections = []
             for i in range(len(scores)):
                 if scores[i] > score_threshold:
-                    class_name = DDSM_CLASSES.get(int(labels[i].cpu().numpy()), 'unknown')
+                    class_id = int(labels[i].cpu().numpy())
+                    class_name = DDSM_CLASSES.get(class_id, f'unknown_class_{class_id}')
+                    score = scores[i].cpu().numpy()
+                    valid_detections.append((class_name, score, class_id))
+                    
                     if class_name in ['benign mass', 'malignant mass', 'benign calcification', 'malignant calcification']:
                         detected_lesions.add(class_name)
+            
+            # Debug output (controlled by global debug flag)
+            if hasattr(run_inference, 'debug_mode') and run_inference.debug_mode:
+                if debug_detections:
+                    print(f"    All detections > 0.01: {debug_detections[:5]}")  # Show first 5
+                if valid_detections:
+                    print(f"    Valid detections > {score_threshold}: {valid_detections}")
+                elif len(debug_detections) == 0:
+                    print(f"    No detections found at all")
             
             return detected_lesions
             
@@ -174,6 +272,10 @@ def run_inference(model, image_tensor, score_threshold=0.1):
 
 def evaluate_performance(dataset_path, model_path, score_threshold=0.1):
     """Evaluate model performance and calculate sensitivity/specificity based on lesion presence"""
+    
+    # Load class mapping
+    global DDSM_CLASSES
+    DDSM_CLASSES = load_class_mapping(dataset_path)
     
     # Load model
     model = load_model(model_path)
@@ -412,6 +514,7 @@ def main():
     parser.add_argument('--model_path', required=True, help='Path to trained model checkpoint')
     parser.add_argument('--score_threshold', type=float, default=0.1, help='Score threshold for detections (default: 0.1)')
     parser.add_argument('--output_file', help='Optional: Save results to CSV file')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output for troubleshooting')
     
     args = parser.parse_args()
     
@@ -438,6 +541,10 @@ def main():
     print(f"Dataset: {args.dataset_path}")
     print(f"Model: {args.model_path}")
     print(f"Score threshold: {args.score_threshold}")
+    
+    # Set debug mode
+    if args.debug:
+        run_inference.debug_mode = True
     
     # Run evaluation
     results = evaluate_performance(
