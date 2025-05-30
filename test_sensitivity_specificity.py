@@ -168,10 +168,20 @@ def load_annotations(annotations_file):
     """Load ground truth annotations from CSV file - focus on lesion presence only"""
     image_lesions = defaultdict(set)  # Store unique lesion types per image
     unique_classes = set()  # Track all unique class names found
+    total_rows = 0
+    valid_rows = 0
+    
+    print(f"Reading annotations from: {annotations_file}")
     
     with open(annotations_file, 'r') as f:
         reader = csv.reader(f)
-        for row in reader:
+        for row_num, row in enumerate(reader):
+            total_rows += 1
+            
+            # Debug: Print first few rows
+            if row_num < 5:
+                print(f"Row {row_num}: {row}")
+            
             if len(row) >= 6:  # path,x1,y1,x2,y2,class_name
                 image_path = row[0]
                 class_name = row[5].strip() if len(row) > 5 else ''
@@ -180,12 +190,16 @@ def load_annotations(annotations_file):
                 if class_name != '':
                     unique_classes.add(class_name)
                 
-                # Skip empty annotations (negative examples)
-                if class_name == '' or row[1] == '' or row[2] == '' or row[3] == '' or row[4] == '':
+                # Check if this is an empty annotation (negative example)
+                coords_empty = (row[1] == '' or row[2] == '' or row[3] == '' or row[4] == '')
+                
+                if class_name == '' or coords_empty:
                     # This is a negative example - no lesions
                     if image_path not in image_lesions:
                         image_lesions[image_path] = set()
                     continue
+                
+                valid_rows += 1
                 
                 # Valid lesion annotation - normalize class name
                 class_name_lower = class_name.lower().strip()
@@ -195,18 +209,42 @@ def load_annotations(annotations_file):
                     standard_name = 'benign mass'
                 elif 'malignant' in class_name_lower and 'mass' in class_name_lower:
                     standard_name = 'malignant mass'
-                elif 'benign' in class_name_lower and 'calc' in class_name_lower:
+                elif ('benign' in class_name_lower and 'calc' in class_name_lower) or \
+                   ('benign' in class_name_lower and 'calcification' in class_name_lower):
                     standard_name = 'benign calcification'
-                elif 'malignant' in class_name_lower and 'calc' in class_name_lower:
+                elif ('malignant' in class_name_lower and 'calc' in class_name_lower) or \
+                     ('malignant' in class_name_lower and 'calcification' in class_name_lower):
                     standard_name = 'malignant calcification'
                 else:
-                    print(f"Warning: Unknown class name '{class_name}' in annotations")
-                    continue
+                    print(f"Warning: Unknown class name '{class_name}' in annotations (row {row_num})")
+                    # Try some additional patterns
+                    if 'benign' in class_name_lower:
+                        standard_name = 'benign mass'  # Default benign to mass
+                        print(f"  -> Mapping to: {standard_name}")
+                    elif 'malignant' in class_name_lower:
+                        standard_name = 'malignant mass'  # Default malignant to mass
+                        print(f"  -> Mapping to: {standard_name}")
+                    else:
+                        print(f"  -> Skipping unknown class")
+                        continue
                 
                 image_lesions[image_path].add(standard_name)
+            else:
+                if row_num < 10:  # Show first 10 problematic rows
+                    print(f"Row {row_num} has insufficient columns: {row}")
     
-    print(f"Found unique class names in annotations: {sorted(unique_classes)}")
-    print(f"Loaded {len(image_lesions)} images with annotations")
+    print(f"\nAnnotation parsing summary:")
+    print(f"  Total rows processed: {total_rows}")
+    print(f"  Valid lesion rows: {valid_rows}")
+    print(f"  Found unique class names in annotations: {sorted(unique_classes)}")
+    print(f"  Loaded {len(image_lesions)} images with annotations")
+    
+    # Count images with and without lesions
+    images_with_lesions = sum(1 for lesions in image_lesions.values() if len(lesions) > 0)
+    images_without_lesions = len(image_lesions) - images_with_lesions
+    
+    print(f"  Images with lesions: {images_with_lesions}")
+    print(f"  Images without lesions: {images_without_lesions}")
     
     # Print summary of lesion types
     lesion_counts = defaultdict(int)
@@ -217,6 +255,14 @@ def load_annotations(annotations_file):
     print("Ground truth lesion distribution:")
     for lesion_type, count in sorted(lesion_counts.items()):
         print(f"  {lesion_type}: {count} images")
+    
+    if len(lesion_counts) == 0:
+        print("\n*** WARNING: No valid lesions found in annotations! ***")
+        print("This could be due to:")
+        print("1. Incorrect CSV format")
+        print("2. Class names not matching expected patterns")
+        print("3. All rows being treated as negative examples")
+        print("Please check your annotations.csv file format")
     
     return image_lesions
 
