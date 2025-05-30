@@ -183,8 +183,17 @@ def load_annotations(annotations_file):
                 print(f"Row {row_num}: {row}")
             
             if len(row) >= 6:  # path,x1,y1,x2,y2,class_name
-                image_path = row[0]
+                original_image_path = row[0]
                 class_name = row[5].strip() if len(row) > 5 else ''
+                
+                # Normalize the image path - extract just the filename or images/filename
+                if '\\' in original_image_path or '/' in original_image_path:
+                    # This is an absolute or relative path, extract the relevant part
+                    filename = os.path.basename(original_image_path)
+                    # Use filename as key for consistency
+                    image_path = filename
+                else:
+                    image_path = original_image_path
                 
                 # Track all unique class names for debugging
                 if class_name != '':
@@ -368,9 +377,22 @@ def evaluate_performance(dataset_path, model_path, score_threshold=0.1):
         image_path = os.path.join(images_dir, image_filename)
         overall_stats['total_images'] += 1
         
-        # Get relative path as it appears in annotations
-        relative_path = f"images/{image_filename}"
-        gt_lesions = ground_truth.get(relative_path, set())
+        # Get lesions for this image - try different path formats
+        gt_lesions = set()
+        
+        # Try exact filename match first (since we normalized paths to filenames)
+        gt_lesions = ground_truth.get(image_filename, set())
+        
+        # If not found, try with images/ prefix
+        if len(gt_lesions) == 0:
+            gt_lesions = ground_truth.get(f"images/{image_filename}", set())
+        
+        # If still not found, try searching by filename ending
+        if len(gt_lesions) == 0:
+            for annotation_path in ground_truth.keys():
+                if annotation_path.endswith(image_filename):
+                    gt_lesions = ground_truth[annotation_path]
+                    break
         
         has_lesions = len(gt_lesions) > 0
         if has_lesions:
