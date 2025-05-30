@@ -122,53 +122,34 @@ def preprocess_image(image_path):
 
 
 def load_annotations(annotations_file):
-    """Load ground truth annotations from CSV file"""
-    annotations = defaultdict(list)
+    """Load ground truth annotations from CSV file - focus on lesion presence only"""
+    image_lesions = defaultdict(set)  # Store unique lesion types per image
     
     with open(annotations_file, 'r') as f:
         reader = csv.reader(f)
         for row in reader:
             if len(row) >= 6:  # path,x1,y1,x2,y2,class_name
                 image_path = row[0]
+                class_name = row[5].strip() if len(row) > 5 else ''
                 
                 # Skip empty annotations (negative examples)
-                if row[1] == '' or row[2] == '' or row[3] == '' or row[4] == '' or row[5] == '':
+                if class_name == '' or row[1] == '' or row[2] == '' or row[3] == '' or row[4] == '':
+                    # This is a negative example - no lesions
+                    if image_path not in image_lesions:
+                        image_lesions[image_path] = set()
                     continue
                 
-                try:
-                    x1, y1, x2, y2 = map(float, row[1:5])
-                    class_name = row[5].strip()
-                    
-                    annotations[image_path].append({
-                        'bbox': [x1, y1, x2, y2],
-                        'class': class_name
-                    })
-                except ValueError:
-                    continue
+                # Valid lesion annotation
+                if class_name in ['benign mass', 'malignant mass', 'benign calcification', 'malignant calcification']:
+                    image_lesions[image_path].add(class_name)
     
-    return annotations
+    return image_lesions
 
 
-def calculate_iou(box1, box2):
-    """Calculate Intersection over Union (IoU) between two bounding boxes"""
-    x1 = max(box1[0], box2[0])
-    y1 = max(box1[1], box2[1])
-    x2 = min(box1[2], box2[2])
-    y2 = min(box1[3], box2[3])
-    
-    if x2 <= x1 or y2 <= y1:
-        return 0.0
-    
-    intersection = (x2 - x1) * (y2 - y1)
-    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
-    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
-    
-    union = area1 + area2 - intersection
-    return intersection / union if union > 0 else 0.0
 
 
 def run_inference(model, image_tensor, score_threshold=0.1):
-    """Run inference on a single image"""
+    """Run inference on a single image - return detected lesion types only"""
     with torch.no_grad():
         if torch.cuda.is_available():
             image_tensor = image_tensor.cuda()
@@ -176,27 +157,23 @@ def run_inference(model, image_tensor, score_threshold=0.1):
         try:
             scores, labels, boxes = model(image_tensor)
             
-            # Filter by score threshold
-            valid_indices = scores > score_threshold
-            
-            detections = []
+            # Filter by score threshold and collect unique lesion types
+            detected_lesions = set()
             for i in range(len(scores)):
-                if valid_indices[i]:
-                    detections.append({
-                        'bbox': boxes[i].cpu().numpy(),
-                        'score': scores[i].cpu().numpy(),
-                        'class': DDSM_CLASSES.get(int(labels[i].cpu().numpy()), 'unknown')
-                    })
+                if scores[i] > score_threshold:
+                    class_name = DDSM_CLASSES.get(int(labels[i].cpu().numpy()), 'unknown')
+                    if class_name in ['benign mass', 'malignant mass', 'benign calcification', 'malignant calcification']:
+                        detected_lesions.add(class_name)
             
-            return detections
+            return detected_lesions
             
         except Exception as e:
             print(f"Error during inference: {e}")
-            return []
+            return set()
 
 
-def evaluate_performance(dataset_path, model_path, score_threshold=0.1, iou_threshold=0.5):
-    """Evaluate model performance and calculate sensitivity/specificity"""
+def evaluate_performance(dataset_path, model_path, score_threshold=0.1):
+    """Evaluate model performance and calculate sensitivity/specificity based on lesion presence"""
     
     # Load model
     model = load_model(model_path)
@@ -213,20 +190,26 @@ def evaluate_performance(dataset_path, model_path, score_threshold=0.1, iou_thre
     ground_truth = load_annotations(annotations_file)
     print(f"Loaded annotations for {len(ground_truth)} images")
     
-    # Initialize counters
-    stats = {
-        'true_positives': 0,
-        'false_positives': 0,
-        'false_negatives': 0,
-        'true_negatives': 0,
+    # Initialize counters for overall and per-class metrics
+    overall_stats = {
+        'true_positives': 0,    # Images with lesions correctly identified as having lesions
+        'false_positives': 0,   # Images without lesions incorrectly identified as having lesions
+        'false_negatives': 0,   # Images with lesions incorrectly identified as not having lesions
+        'true_negatives': 0,    # Images without lesions correctly identified as not having lesions
         'total_images': 0,
         'images_with_lesions': 0,
         'images_without_lesions': 0
     }
     
-    class_stats = defaultdict(lambda: {
-        'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0
-    })
+    # Per-class statistics (presence/absence of each lesion type)
+    class_stats = {}
+    for lesion_type in ['benign mass', 'malignant mass', 'benign calcification', 'malignant calcification']:
+        class_stats[lesion_type] = {
+            'tp': 0,  # Images with this lesion type correctly detected
+            'fp': 0,  # Images without this lesion type but incorrectly detected
+            'fn': 0,  # Images with this lesion type but not detected
+            'tn': 0   # Images without this lesion type correctly not detected
+        }
     
     images_dir = os.path.join(dataset_path, 'images')
     
@@ -235,91 +218,72 @@ def evaluate_performance(dataset_path, model_path, score_threshold=0.1, iou_thre
             continue
             
         image_path = os.path.join(images_dir, image_filename)
-        stats['total_images'] += 1
+        overall_stats['total_images'] += 1
         
         # Get relative path as it appears in annotations
         relative_path = f"images/{image_filename}"
-        gt_annotations = ground_truth.get(relative_path, [])
+        gt_lesions = ground_truth.get(relative_path, set())
         
-        if len(gt_annotations) > 0:
-            stats['images_with_lesions'] += 1
+        has_lesions = len(gt_lesions) > 0
+        if has_lesions:
+            overall_stats['images_with_lesions'] += 1
         else:
-            stats['images_without_lesions'] += 1
+            overall_stats['images_without_lesions'] += 1
         
-        print(f"Processing {image_filename} ({stats['total_images']}) - GT: {len(gt_annotations)} lesions")
+        print(f"Processing {image_filename} ({overall_stats['total_images']}) - GT lesions: {gt_lesions}")
         
         try:
             # Preprocess image
             image_tensor, scale = preprocess_image(image_path)
             
-            # Run inference
-            detections = run_inference(model, image_tensor, score_threshold)
+            # Run inference - get detected lesion types
+            detected_lesions = run_inference(model, image_tensor, score_threshold)
             
-            # Scale detections back to original image size
-            for detection in detections:
-                detection['bbox'] = detection['bbox'] / scale
+            print(f"  Detected lesions: {detected_lesions}")
             
-            # Match detections with ground truth
-            matched_gt = set()
-            matched_det = set()
+            # Overall performance: any lesion vs no lesion
+            detected_any = len(detected_lesions) > 0
             
-            # For each detection, find best matching ground truth
-            for det_idx, detection in enumerate(detections):
-                best_iou = 0
-                best_gt_idx = -1
+            if has_lesions and detected_any:
+                overall_stats['true_positives'] += 1
+            elif has_lesions and not detected_any:
+                overall_stats['false_negatives'] += 1
+            elif not has_lesions and detected_any:
+                overall_stats['false_positives'] += 1
+            elif not has_lesions and not detected_any:
+                overall_stats['true_negatives'] += 1
+            
+            # Per-class performance: presence/absence of each specific lesion type
+            for lesion_type in class_stats.keys():
+                gt_has_lesion = lesion_type in gt_lesions
+                detected_lesion = lesion_type in detected_lesions
                 
-                for gt_idx, gt_annotation in enumerate(gt_annotations):
-                    if gt_idx in matched_gt:
-                        continue
-                    
-                    iou = calculate_iou(detection['bbox'], gt_annotation['bbox'])
-                    if iou > best_iou and iou >= iou_threshold:
-                        # Check if classes match
-                        if detection['class'] == gt_annotation['class']:
-                            best_iou = iou
-                            best_gt_idx = gt_idx
-                
-                if best_gt_idx >= 0:
-                    # True positive
-                    stats['true_positives'] += 1
-                    class_stats[detection['class']]['tp'] += 1
-                    matched_gt.add(best_gt_idx)
-                    matched_det.add(det_idx)
-                else:
-                    # False positive
-                    stats['false_positives'] += 1
-                    class_stats[detection['class']]['fp'] += 1
-            
-            # Count false negatives (unmatched ground truth)
-            for gt_idx, gt_annotation in enumerate(gt_annotations):
-                if gt_idx not in matched_gt:
-                    stats['false_negatives'] += 1
-                    class_stats[gt_annotation['class']]['fn'] += 1
-            
-            # For images without lesions, if no detections -> true negative
-            if len(gt_annotations) == 0 and len(detections) == 0:
-                stats['true_negatives'] += 1
-            elif len(gt_annotations) == 0 and len(detections) > 0:
-                # False positives already counted above
-                pass
+                if gt_has_lesion and detected_lesion:
+                    class_stats[lesion_type]['tp'] += 1
+                elif gt_has_lesion and not detected_lesion:
+                    class_stats[lesion_type]['fn'] += 1
+                elif not gt_has_lesion and detected_lesion:
+                    class_stats[lesion_type]['fp'] += 1
+                elif not gt_has_lesion and not detected_lesion:
+                    class_stats[lesion_type]['tn'] += 1
                 
         except Exception as e:
             print(f"Error processing {image_filename}: {e}")
             continue
     
     # Calculate metrics
-    results = calculate_metrics(stats, class_stats)
+    results = calculate_metrics(overall_stats, class_stats)
     return results
 
 
-def calculate_metrics(stats, class_stats):
+def calculate_metrics(overall_stats, class_stats):
     """Calculate sensitivity, specificity, and other metrics"""
     
-    # Overall metrics
-    tp = stats['true_positives']
-    fp = stats['false_positives'] 
-    fn = stats['false_negatives']
-    tn = stats['true_negatives']
+    # Overall metrics (any lesion vs no lesion)
+    tp = overall_stats['true_positives']
+    fp = overall_stats['false_positives'] 
+    fn = overall_stats['false_negatives']
+    tn = overall_stats['true_negatives']
     
     # Sensitivity (True Positive Rate) = TP / (TP + FN)
     sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -327,8 +291,14 @@ def calculate_metrics(stats, class_stats):
     # Specificity (True Negative Rate) = TN / (TN + FP)
     specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
     
-    # Precision = TP / (TP + FP)
+    # Precision (Positive Predictive Value) = TP / (TP + FP)
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    
+    # Negative Predictive Value = TN / (TN + FN)
+    npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
+    
+    # Accuracy = (TP + TN) / (TP + TN + FP + FN)
+    accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0.0
     
     # F1 Score = 2 * (Precision * Sensitivity) / (Precision + Sensitivity)
     f1_score = 2 * (precision * sensitivity) / (precision + sensitivity) if (precision + sensitivity) > 0 else 0.0
@@ -338,35 +308,56 @@ def calculate_metrics(stats, class_stats):
             'sensitivity': sensitivity,
             'specificity': specificity,
             'precision': precision,
+            'negative_predictive_value': npv,
+            'accuracy': accuracy,
             'f1_score': f1_score,
             'true_positives': tp,
             'false_positives': fp,
             'false_negatives': fn,
             'true_negatives': tn,
-            'total_images': stats['total_images'],
-            'images_with_lesions': stats['images_with_lesions'],
-            'images_without_lesions': stats['images_without_lesions']
+            'total_images': overall_stats['total_images'],
+            'images_with_lesions': overall_stats['images_with_lesions'],
+            'images_without_lesions': overall_stats['images_without_lesions']
         },
         'per_class': {}
     }
     
-    # Per-class metrics
+    # Per-class metrics (presence/absence of each specific lesion type)
     for class_name, class_stat in class_stats.items():
         tp_c = class_stat['tp']
         fp_c = class_stat['fp']
         fn_c = class_stat['fn']
+        tn_c = class_stat['tn']
         
+        # Sensitivity for this lesion type
         sens_c = tp_c / (tp_c + fn_c) if (tp_c + fn_c) > 0 else 0.0
+        
+        # Specificity for this lesion type
+        spec_c = tn_c / (tn_c + fp_c) if (tn_c + fp_c) > 0 else 0.0
+        
+        # Precision for this lesion type
         prec_c = tp_c / (tp_c + fp_c) if (tp_c + fp_c) > 0 else 0.0
+        
+        # NPV for this lesion type
+        npv_c = tn_c / (tn_c + fn_c) if (tn_c + fn_c) > 0 else 0.0
+        
+        # Accuracy for this lesion type
+        acc_c = (tp_c + tn_c) / (tp_c + tn_c + fp_c + fn_c) if (tp_c + tn_c + fp_c + fn_c) > 0 else 0.0
+        
+        # F1 score for this lesion type
         f1_c = 2 * (prec_c * sens_c) / (prec_c + sens_c) if (prec_c + sens_c) > 0 else 0.0
         
         results['per_class'][class_name] = {
             'sensitivity': sens_c,
+            'specificity': spec_c,
             'precision': prec_c,
+            'negative_predictive_value': npv_c,
+            'accuracy': acc_c,
             'f1_score': f1_c,
             'true_positives': tp_c,
             'false_positives': fp_c,
-            'false_negatives': fn_c
+            'false_negatives': fn_c,
+            'true_negatives': tn_c
         }
     
     return results
@@ -385,26 +376,31 @@ def print_results(results):
     print(f"  Images with lesions: {overall['images_with_lesions']}")
     print(f"  Images without lesions: {overall['images_without_lesions']}")
     
-    print(f"\nOverall Performance:")
+    print(f"\nOverall Performance (Any Lesion vs No Lesion):")
     print(f"  Sensitivity (Recall): {overall['sensitivity']:.3f} ({overall['sensitivity']*100:.1f}%)")
     print(f"  Specificity: {overall['specificity']:.3f} ({overall['specificity']*100:.1f}%)")
-    print(f"  Precision: {overall['precision']:.3f} ({overall['precision']*100:.1f}%)")
+    print(f"  Precision (PPV): {overall['precision']:.3f} ({overall['precision']*100:.1f}%)")
+    print(f"  Negative Predictive Value (NPV): {overall['negative_predictive_value']:.3f} ({overall['negative_predictive_value']*100:.1f}%)")
+    print(f"  Accuracy: {overall['accuracy']:.3f} ({overall['accuracy']*100:.1f}%)")
     print(f"  F1-Score: {overall['f1_score']:.3f}")
     
-    print(f"\nConfusion Matrix:")
-    print(f"  True Positives (TP): {overall['true_positives']}")
-    print(f"  False Positives (FP): {overall['false_positives']}")
-    print(f"  False Negatives (FN): {overall['false_negatives']}")
-    print(f"  True Negatives (TN): {overall['true_negatives']}")
+    print(f"\nOverall Confusion Matrix:")
+    print(f"  True Positives (TP): {overall['true_positives']} (images with lesions correctly identified)")
+    print(f"  False Positives (FP): {overall['false_positives']} (images without lesions incorrectly flagged)")
+    print(f"  False Negatives (FN): {overall['false_negatives']} (images with lesions missed)")
+    print(f"  True Negatives (TN): {overall['true_negatives']} (images without lesions correctly identified)")
     
-    print(f"\nPer-Class Performance:")
+    print(f"\nPer-Lesion Type Performance:")
     print("-" * 80)
     for class_name, metrics in results['per_class'].items():
         print(f"\n{class_name.upper()}:")
-        print(f"  Sensitivity: {metrics['sensitivity']:.3f} ({metrics['sensitivity']*100:.1f}%)")
-        print(f"  Precision: {metrics['precision']:.3f} ({metrics['precision']*100:.1f}%)")
+        print(f"  Sensitivity: {metrics['sensitivity']:.3f} ({metrics['sensitivity']*100:.1f}%) - ability to detect this lesion type")
+        print(f"  Specificity: {metrics['specificity']:.3f} ({metrics['specificity']*100:.1f}%) - ability to correctly rule out this lesion type")
+        print(f"  Precision (PPV): {metrics['precision']:.3f} ({metrics['precision']*100:.1f}%) - when detected, probability it's correct")
+        print(f"  NPV: {metrics['negative_predictive_value']:.3f} ({metrics['negative_predictive_value']*100:.1f}%) - when not detected, probability it's absent")
+        print(f"  Accuracy: {metrics['accuracy']:.3f} ({metrics['accuracy']*100:.1f}%)")
         print(f"  F1-Score: {metrics['f1_score']:.3f}")
-        print(f"  TP: {metrics['true_positives']}, FP: {metrics['false_positives']}, FN: {metrics['false_negatives']}")
+        print(f"  TP: {metrics['true_positives']}, FP: {metrics['false_positives']}, FN: {metrics['false_negatives']}, TN: {metrics['true_negatives']}")
     
     print("\n" + "="*80)
 
@@ -415,7 +411,6 @@ def main():
     parser.add_argument('--dataset_path', required=True, help='Path to dataset directory (containing images/ and annotations.csv)')
     parser.add_argument('--model_path', required=True, help='Path to trained model checkpoint')
     parser.add_argument('--score_threshold', type=float, default=0.1, help='Score threshold for detections (default: 0.1)')
-    parser.add_argument('--iou_threshold', type=float, default=0.5, help='IoU threshold for matching detections to ground truth (default: 0.5)')
     parser.add_argument('--output_file', help='Optional: Save results to CSV file')
     
     args = parser.parse_args()
@@ -443,14 +438,12 @@ def main():
     print(f"Dataset: {args.dataset_path}")
     print(f"Model: {args.model_path}")
     print(f"Score threshold: {args.score_threshold}")
-    print(f"IoU threshold: {args.iou_threshold}")
     
     # Run evaluation
     results = evaluate_performance(
         args.dataset_path, 
         args.model_path, 
-        args.score_threshold, 
-        args.iou_threshold
+        args.score_threshold
     )
     
     if results is None:
@@ -476,31 +469,36 @@ def save_results_to_csv(results, output_file, args):
         writer.writerow(['Dataset', args.dataset_path])
         writer.writerow(['Model', args.model_path])
         writer.writerow(['Score Threshold', args.score_threshold])
-        writer.writerow(['IoU Threshold', args.iou_threshold])
         writer.writerow([])
         
         # Overall metrics
         overall = results['overall']
-        writer.writerow(['Overall Performance'])
+        writer.writerow(['Overall Performance (Any Lesion vs No Lesion)'])
         writer.writerow(['Metric', 'Value', 'Percentage'])
         writer.writerow(['Sensitivity', f"{overall['sensitivity']:.3f}", f"{overall['sensitivity']*100:.1f}%"])
         writer.writerow(['Specificity', f"{overall['specificity']:.3f}", f"{overall['specificity']*100:.1f}%"])
         writer.writerow(['Precision', f"{overall['precision']:.3f}", f"{overall['precision']*100:.1f}%"])
+        writer.writerow(['NPV', f"{overall['negative_predictive_value']:.3f}", f"{overall['negative_predictive_value']*100:.1f}%"])
+        writer.writerow(['Accuracy', f"{overall['accuracy']:.3f}", f"{overall['accuracy']*100:.1f}%"])
         writer.writerow(['F1-Score', f"{overall['f1_score']:.3f}", ''])
         writer.writerow([])
         
         # Per-class metrics
-        writer.writerow(['Per-Class Performance'])
-        writer.writerow(['Class', 'Sensitivity', 'Precision', 'F1-Score', 'TP', 'FP', 'FN'])
+        writer.writerow(['Per-Lesion Type Performance'])
+        writer.writerow(['Class', 'Sensitivity', 'Specificity', 'Precision', 'NPV', 'Accuracy', 'F1-Score', 'TP', 'FP', 'FN', 'TN'])
         for class_name, metrics in results['per_class'].items():
             writer.writerow([
                 class_name,
                 f"{metrics['sensitivity']:.3f}",
+                f"{metrics['specificity']:.3f}",
                 f"{metrics['precision']:.3f}",
+                f"{metrics['negative_predictive_value']:.3f}",
+                f"{metrics['accuracy']:.3f}",
                 f"{metrics['f1_score']:.3f}",
                 metrics['true_positives'],
                 metrics['false_positives'],
-                metrics['false_negatives']
+                metrics['false_negatives'],
+                metrics['true_negatives']
             ])
 
 
